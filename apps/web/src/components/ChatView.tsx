@@ -47,6 +47,7 @@ import {
   useQuestionAttachmentPreparation,
 } from "../questionAttachments";
 import { useAttachmentUploadStore } from "../lib/attachmentUploadQueue";
+import { retainBackgroundScope } from "../lib/backgroundActivityReporter";
 import {
   AuthOrchestrationOperateScope,
   AuthSettingsWriteScope,
@@ -2998,6 +2999,18 @@ export default function ChatView(props: ChatViewProps) {
     serverThread?.updatedAt,
     visitThreadMutation,
   ]);
+
+  // The thread subscription outlives this view while a turn runs, so the
+  // displayed thread is reported on its own.
+  const displayedEnvironmentId = serverThread?.environmentId;
+  const displayedThreadId = serverThread?.id;
+  useEffect(() => {
+    if (displayedEnvironmentId === undefined || displayedThreadId === undefined) return;
+    return retainBackgroundScope(displayedEnvironmentId, {
+      type: "thread",
+      threadId: displayedThreadId,
+    });
+  }, [displayedEnvironmentId, displayedThreadId]);
 
   // Once a thread selects an environment, never substitute the primary
   // environment's config while the selected environment is still loading.
