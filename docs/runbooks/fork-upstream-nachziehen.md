@@ -67,6 +67,14 @@ Nach dem Nachziehen die Tests der eigenen Features laufen lassen, keine repo-wei
 volta run --node 24.21.0 vp run dev:desktop
 ```
 
+Mit WakaTime-Heartbeats ans business-os (Feature `feat/wakatime-heartbeats`, Doku in `docs/user/time-tracking.md`):
+
+```sh
+env T3CODE_WAKATIME_ENABLED=true volta run --node 24.21.0 vp run dev:desktop
+```
+
+Den Dev-Lauf für die Arbeit im Alltag selbst im Terminal starten und auf `wowy` lassen. Er lädt Änderungen am ausgecheckten Code sofort nach, ein Branch-Wechsel im selben Checkout ändert also die laufende App. Für paralleles Entwickeln einen Worktree nehmen.
+
 Der Dev-Lauf nutzt `~/.t3/dev` und ein eigenes Electron-Profil. Die installierte Release-App und `~/.t3/userdata` bleiben unberührt. Echte Daten als Kopie holen: `vp run migrate-dev-db` bei gestopptem Dev-Lauf. Einstellungen bei Bedarf aus `~/.t3/userdata` kopieren (`settings.json`, `keybindings.json`, `client-settings.json`), nie verlinken.
 
 **Alltag (ab stabilem 0.0.46, noch nicht erprobt):** `wowy` auf den Release-Tag statt auf `main` aufsetzen, Features hineinmergen, DMG bauen und die Release-App in `/Applications` ersetzen.
