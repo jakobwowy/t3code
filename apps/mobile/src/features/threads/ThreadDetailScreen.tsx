@@ -1,4 +1,5 @@
 import { useAtomValue } from "@effect/atom-react";
+import { retainMobileBackgroundScope } from "../../connection/background-activity-scopes";
 import { useThreadReportedModelSelection } from "../../state/entities";
 import { UsageLimitRecoveryCard } from "./UsageLimitRecoveryCard";
 import { useNavigation } from "@react-navigation/native";
@@ -899,6 +900,16 @@ export const ThreadDetailScreen = memo(function ThreadDetailScreen(props: Thread
     showContent,
     visitThread,
   ]);
+
+  // The thread subscription outlives this screen while a turn runs, so the
+  // displayed thread is reported on its own.
+  useEffect(() => {
+    if (!showContent) return;
+    return retainMobileBackgroundScope(props.environmentId, {
+      type: "thread",
+      threadId: selectedThreadId,
+    });
+  }, [props.environmentId, selectedThreadId, showContent]);
 
   useEffect(() => {
     setAnchorMessageId(null);

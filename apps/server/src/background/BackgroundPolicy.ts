@@ -125,7 +125,8 @@ function upsertClientActivityLease(
   return next;
 }
 
-function isForegroundLease(lease: ClientActivityLease, now: DateTime.Utc): boolean {
+/** Whether someone is looking at the client: visible, and focused or recently used. */
+export function isForegroundLease(lease: ClientActivityLease, now: DateTime.Utc): boolean {
   return isLeaseActive(lease, now) && lease.visible && (lease.focused || lease.recentlyInteracted);
 }
 
