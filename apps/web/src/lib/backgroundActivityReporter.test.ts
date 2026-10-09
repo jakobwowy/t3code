@@ -1,5 +1,5 @@
 import { EnvironmentRegistry } from "@t3tools/client-runtime/connection";
-import { EnvironmentId, WS_METHODS } from "@t3tools/contracts";
+import { EnvironmentId, ThreadId, WS_METHODS } from "@t3tools/contracts";
 import { afterEach, beforeEach, describe, expect, it } from "@effect/vitest";
 import * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
@@ -11,6 +11,7 @@ import { vi } from "vite-plus/test";
 import {
   layer,
   observeBackgroundActivitySubscription,
+  retainBackgroundScope,
   retainedBackgroundScopes,
 } from "./backgroundActivityReporter.ts";
 
@@ -40,6 +41,21 @@ describe("wasRecentlyInteracted", () => {
       expect(retainedBackgroundScopes(environmentId)).toEqual([]);
     }),
   );
+
+  it("reports a displayed thread until every view showing it releases", () => {
+    const environmentId = EnvironmentId.make("environment-thread-scope-test");
+    const scope = { type: "thread" as const, threadId: ThreadId.make("thread-1") };
+    const releaseFirst = retainBackgroundScope(environmentId, scope);
+    const releaseSecond = retainBackgroundScope(environmentId, scope);
+
+    expect(retainedBackgroundScopes(environmentId)).toEqual([scope]);
+
+    releaseFirst();
+    expect(retainedBackgroundScopes(environmentId)).toEqual([scope]);
+
+    releaseSecond();
+    expect(retainedBackgroundScopes(environmentId)).toEqual([]);
+  });
 
   it.effect("keeps delimiter-containing environment and scope values distinct", () =>
     Effect.gen(function* () {

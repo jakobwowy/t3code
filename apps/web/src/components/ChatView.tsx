@@ -108,6 +108,7 @@ import { useAtomValue } from "@effect/atom-react";
 import { type SetStateAction, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "@tanstack/react-router";
 import { assistantCitationFromLocation } from "../lib/assistantCitationNavigation";
+import { retainBackgroundScope } from "../lib/backgroundActivityReporter";
 import type { AssistantCitationSourceAnchor } from "~/lib/assistantTextSelection";
 import { useShallow } from "zustand/react/shallow";
 import {
@@ -1272,6 +1273,15 @@ export default function ChatView(props: ChatViewProps) {
   const phase = derivePhase(activeRuntime);
   const serverThreadId = serverThread?.id;
   const serverThreadEnvironmentId = serverThread?.environmentId;
+  // The thread subscription outlives this view while a turn runs, so the
+  // displayed thread is reported on its own.
+  useEffect(() => {
+    if (serverThreadEnvironmentId === undefined || serverThreadId === undefined) return;
+    return retainBackgroundScope(serverThreadEnvironmentId, {
+      type: "thread",
+      threadId: serverThreadId,
+    });
+  }, [serverThreadEnvironmentId, serverThreadId]);
   const setThreadError = makeThreadErrorSetter({
     routeThreadRef,
     routeThreadKey,

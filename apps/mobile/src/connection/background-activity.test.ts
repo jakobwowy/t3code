@@ -1,10 +1,11 @@
-import { EnvironmentId, WS_METHODS } from "@t3tools/contracts";
+import { EnvironmentId, ThreadId, WS_METHODS } from "@t3tools/contracts";
 import { describe, expect, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
 
 import {
   onRetainedMobileBackgroundScopesChange,
   observeMobileBackgroundActivitySubscription,
+  retainMobileBackgroundScope,
   retainedMobileBackgroundScopes,
 } from "./background-activity-scopes";
 
@@ -37,6 +38,21 @@ describe("mobile background activity", () => {
       expect(retainedMobileBackgroundScopes(environmentId)).toEqual([]);
     }),
   );
+
+  it("reports a displayed thread until every screen showing it releases", () => {
+    const environmentId = EnvironmentId.make("mobile-thread-scope");
+    const scope = { type: "thread" as const, threadId: ThreadId.make("thread-1") };
+    const releaseFirst = retainMobileBackgroundScope(environmentId, scope);
+    const releaseSecond = retainMobileBackgroundScope(environmentId, scope);
+
+    expect(retainedMobileBackgroundScopes(environmentId)).toEqual([scope]);
+
+    releaseFirst();
+    expect(retainedMobileBackgroundScopes(environmentId)).toEqual([scope]);
+
+    releaseSecond();
+    expect(retainedMobileBackgroundScopes(environmentId)).toEqual([]);
+  });
 
   it.effect("keeps delimiter-containing environment and scope values distinct", () =>
     Effect.gen(function* () {

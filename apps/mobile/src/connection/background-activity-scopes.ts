@@ -56,30 +56,41 @@ export function retainedMobileBackgroundScopes(
   ).filter((scope): scope is BackgroundScope => scope !== null);
 }
 
+/**
+ * Reports `scope` for `environmentId` until the returned release runs. Use it for
+ * demand no subscription expresses, such as the thread a screen is displaying.
+ */
+export function retainMobileBackgroundScope(
+  environmentId: EnvironmentId,
+  scope: BackgroundScope,
+): () => void {
+  const key = stableScopeKey(environmentId, scope);
+  const current = retainedScopes.get(key);
+  if (current) {
+    current.refCount += 1;
+  } else {
+    retainedScopes.set(key, { environmentId, scope, refCount: 1 });
+    notify();
+  }
+  return () => {
+    const retained = retainedScopes.get(key);
+    if (!retained) return;
+    retained.refCount -= 1;
+    if (retained.refCount <= 0) {
+      retainedScopes.delete(key);
+      notify();
+    }
+  };
+}
+
 export function observeMobileBackgroundActivitySubscription(
   observation: EnvironmentRpcSubscriptionObservation,
 ): Effect.Effect<Effect.Effect<void>> {
   const scope = scopeForSubscription(observation);
   if (scope === null) return Effect.succeed(Effect.void);
   return Effect.sync(() => {
-    const environmentId = observation.environmentId as EnvironmentId;
-    const key = stableScopeKey(environmentId, scope);
-    const current = retainedScopes.get(key);
-    if (current) {
-      current.refCount += 1;
-    } else {
-      retainedScopes.set(key, { environmentId, scope, refCount: 1 });
-      notify();
-    }
-    return Effect.sync(() => {
-      const retained = retainedScopes.get(key);
-      if (!retained) return;
-      retained.refCount -= 1;
-      if (retained.refCount <= 0) {
-        retainedScopes.delete(key);
-        notify();
-      }
-    });
+    const release = retainMobileBackgroundScope(observation.environmentId as EnvironmentId, scope);
+    return Effect.sync(release);
   });
 }
 

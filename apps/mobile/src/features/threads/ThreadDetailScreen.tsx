@@ -8,6 +8,7 @@ import {
 import { AsyncResult } from "effect/reactivity";
 import * as Dialog from "../../components/ui/Dialog";
 import { useAtomValue } from "@effect/atom-react";
+import { retainMobileBackgroundScope } from "../../connection/background-activity-scopes";
 import {
   useChildThreadInputs,
   useThreadReportedModelSelection,
@@ -1194,6 +1195,16 @@ export const ThreadDetailScreen = function ThreadDetailScreen(props: ThreadDetai
   useLayoutEffect(() => {
     selectedThreadKeyRef.current = selectedThreadKey;
   }, [selectedThreadKey]);
+
+  // The thread subscription outlives this screen while a turn runs, so the
+  // displayed thread is reported on its own.
+  useEffect(() => {
+    if (!showContent) return;
+    return retainMobileBackgroundScope(props.environmentId, {
+      type: "thread",
+      threadId: selectedThreadId,
+    });
+  }, [props.environmentId, selectedThreadId, showContent]);
 
   useEffect(() => {
     setAnchorMessageId(null);
