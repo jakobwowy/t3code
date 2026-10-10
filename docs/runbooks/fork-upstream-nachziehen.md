@@ -77,13 +77,26 @@ Den Dev-Lauf für die Arbeit im Alltag selbst im Terminal starten und auf `wowy`
 
 Der Dev-Lauf nutzt `~/.t3/dev` und ein eigenes Electron-Profil. Die installierte Release-App und `~/.t3/userdata` bleiben unberührt. Echte Daten als Kopie holen: `vp run migrate-dev-db` bei gestopptem Dev-Lauf. Einstellungen bei Bedarf aus `~/.t3/userdata` kopieren (`settings.json`, `keybindings.json`, `client-settings.json`), nie verlinken.
 
-**Alltag (ab stabilem 0.0.46, noch nicht erprobt):** `wowy` auf den Release-Tag statt auf `main` aufsetzen, Features hineinmergen, DMG bauen und die Release-App in `/Applications` ersetzen.
+**Alltag als App:** aus `wowy` ein DMG bauen. Am 10.10.2026 erstmals gebaut, rund fünf Minuten.
 
 ```sh
-volta run --node 24.21.0 vp run dist:desktop:dmg:arm64   # schreibt nach release/, unsigniert
+volta run --node 24.21.0 vp run dist:desktop:dmg:arm64 --build-version 0.0.46-nightly.JJJJMMTT.N
 ```
 
-Vor dem ersten Start des Eigenbaus `~/.t3/userdata` sichern. Der neue Stand kopiert `state.sqlite` einmalig nach `statev2.sqlite`, danach laufen alter und neuer Stand auseinander. Der Eigenbau hat dieselbe App-ID wie die Release-App und keinen Update-Feed. Neue Versionen kommen nur durch Nachziehen und Neubauen.
+- Die Option heißt `--build-version`. `--version` gibt nur die Version des Skripts aus und baut nichts.
+- Eine Version nach dem Muster `-nightly.JJJJMMTT.N` ergibt die App „T3 Code (Nightly)". Sie liegt damit neben der Release-App „T3 Code (Alpha)" und ersetzt sie nicht. Ohne die Option hieße der Bau wie die Release-App.
+- Ergebnis in `release/` (gitignored): DMG und ZIP, unsigniert, ohne `app-update.yml`. Der Eigenbau hat keinen Update-Feed, Upstream überschreibt ihn nicht. Neue Versionen kommen nur durch Nachziehen und Neubauen.
+- Beim Neubau `N` oder das Datum hochzählen, die App in `/Applications` ersetzen.
+- Umgebungsvariablen liest die Desktop-App aus dem Shell-Profil. Für die Heartbeats `export T3CODE_WAKATIME_ENABLED=true` in `~/.zshrc`.
+
+Der Eigenbau hat dieselbe App-ID wie die Release-App (`com.t3tools.t3code`) und nutzt denselben Datenordner `~/.t3/userdata`. Beim ersten Start kopiert er `state.sqlite` einmalig nach `statev2.sqlite` und arbeitet auf der Kopie, die Release-App 0.0.45 bleibt auf dem Original. Threads laufen danach auseinander, Einstellungen und Anhänge bleiben gemeinsam (Upstream: `docs/user/thread-migration.md`). Vor dem ersten Start sichern:
+
+```sh
+cp -Rp ~/.t3/userdata ~/.t3/backups/userdata-JJJJ-MM-TT
+sqlite3 "file:$HOME/.t3/userdata/state.sqlite?mode=ro" ".backup '$HOME/.t3/backups/userdata-JJJJ-MM-TT/state.sqlite'"
+```
+
+Die zweite Zeile ersetzt die mitkopierte Datenbank durch einen konsistenten Stand, falls die App beim Kopieren lief. Sicherung vom 10.10.2026: `~/.t3/backups/userdata-2026-10-10-vor-nightly`.
 
 ## Nie
 
