@@ -16,7 +16,8 @@ the file. Without `api_url`, heartbeats go to wakatime.com.
 ## What counts
 
 A thread counts while a T3 Code window or the mobile app shows it and you are there: the client is
-visible and focused or recently used, and the host is not idle, locked, or asleep. The server sends
+visible and focused or recently used, and the host is not locked or asleep. Reading or dictating
+without touching the keyboard or mouse still counts. The server sends
 a heartbeat when you open or return to a thread, and again every two minutes while you stay. A
 thread whose agent keeps working after you leave does not count.
 
