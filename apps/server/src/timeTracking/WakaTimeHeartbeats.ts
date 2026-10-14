@@ -92,13 +92,15 @@ export function parseWakaTimeSettings(text: string) {
   };
 }
 
-/** Threads a foreground client displays while someone is at the host. */
+/**
+ * Threads a foreground client displays while the host is awake and unlocked.
+ * Host idle does not count as away: reading output or dictating the next
+ * prompt produces no input, but is still work.
+ */
 function foregroundThreadIds(snapshot: BackgroundPolicySnapshot): ReadonlySet<ThreadId> {
   const threadIds = new Set<ThreadId>();
   const { hostPower } = snapshot;
-  const hostAway =
-    !hostPower.stale &&
-    (hostPower.suspended || hostPower.locked === "true" || hostPower.idle === "true");
+  const hostAway = !hostPower.stale && (hostPower.suspended || hostPower.locked === "true");
   if (hostAway) return threadIds;
   for (const lease of snapshot.leases) {
     if (!BackgroundPolicy.isForegroundLease(lease, snapshot.updatedAt)) continue;

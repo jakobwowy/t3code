@@ -356,13 +356,35 @@ it.layer(NodeServices.layer)("WakaTimeHeartbeats", (it) => {
         snapshotOf([displaying(WORKTREE_THREAD)], { ...presentHost, locked: "true" }),
       );
       yield* service.push(
-        snapshotOf([displaying(WORKTREE_THREAD)], { ...presentHost, idle: "true" }),
+        snapshotOf([displaying(WORKTREE_THREAD)], { ...presentHost, suspended: true }),
       );
       yield* service.display(MAIN_CHECKOUT_THREAD);
 
       // The first request is for the thread someone finally looked at.
       const request = yield* service.nextRequest;
       assert.equal(request.heartbeats[0]?.entity, `T3 Code ${MAIN_CHECKOUT_THREAD}`);
+    }),
+  );
+
+  it.effect("keeps counting while the host is idle", () =>
+    Effect.gen(function* () {
+      const service = yield* start();
+      yield* service.display(WORKTREE_THREAD);
+      const first = yield* service.nextRequest;
+
+      // Reading or dictating without input marks the host idle after a minute.
+      yield* TestClock.adjust("1 minute");
+      yield* service.push(
+        snapshotOf([displaying(WORKTREE_THREAD)], {
+          ...presentHost,
+          idle: "true",
+          idleSeconds: 60,
+        }),
+      );
+      yield* TestClock.adjust("1 minute");
+      const repeated = yield* service.nextRequest;
+      assert.equal(repeated.heartbeats[0]?.entity, `T3 Code ${WORKTREE_THREAD}`);
+      assert.equal(secondsBetween(first, repeated), 120);
     }),
   );
 
