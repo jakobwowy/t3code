@@ -124,16 +124,18 @@ export function useRightPanelActions(input: RightPanelActionsInput) {
     });
   };
   const createBrowserSurfaceStable = useStableCallback(createBrowserSurface);
-  const addDiffSurface = () => {
+  const openChangesFromThreadPanel = (scope: "branch" | "unstaged") => {
     if (!activeThreadRef || !isServerThread || !isGitRepo) return;
-    useDiffPanelStore.getState().selectGitScope(activeThreadRef, "branch");
+    // Keep the scope the user picked; the diff-open effect would reset it to the branch.
+    explicitDiffOpenRef.current = diffOpen ? null : activeThreadRef;
+    useDiffPanelStore.getState().selectGitScope(activeThreadRef, scope);
     useRightPanelStore.getState().open(activeThreadRef, "diff");
     onDiffPanelOpen?.();
   };
-  const addDiffSurfaceStable = useStableCallback(addDiffSurface);
-  const openChangesFromThreadPanel = () => {
-    addDiffSurface();
+  const addDiffSurface = () => {
+    openChangesFromThreadPanel("branch");
   };
+  const addDiffSurfaceStable = useStableCallback(addDiffSurface);
   const openChangesFromThreadPanelStable = useStableCallback(openChangesFromThreadPanel);
   const addFilesSurface = () => {
     if (!activeThreadRef || !activeProject) return;
