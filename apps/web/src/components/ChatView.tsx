@@ -2306,7 +2306,7 @@ export default function ChatView(props: ChatViewProps) {
     const explicitThreadRef = explicitDiffOpenRef.current;
     explicitDiffOpenRef.current = null;
     // Generic openings always show Changes, including tab fallbacks and thread changes.
-    // A timeline click instead opens the specific turn/file the user requested.
+    // Timeline clicks and the thread details rows instead open the view the user picked.
     if (diffOpen && activeThreadRef && explicitThreadRef !== activeThreadRef) {
       useDiffPanelStore.getState().selectGitScope(activeThreadRef, "branch");
     }
@@ -5434,11 +5434,12 @@ export default function ChatView(props: ChatViewProps) {
   const openChangesFromThreadPanel = useCallback(
     (scope: "branch" | "unstaged") => {
       if (!activeThreadRef || !isServerThread || !isGitRepo) return;
+      explicitDiffOpenRef.current = diffOpen ? null : activeThreadRef;
       useDiffPanelStore.getState().selectGitScope(activeThreadRef, scope);
       useRightPanelStore.getState().open(activeThreadRef, "diff");
       onDiffPanelOpen?.();
     },
-    [activeThreadRef, isGitRepo, isServerThread, onDiffPanelOpen],
+    [activeThreadRef, diffOpen, isGitRepo, isServerThread, onDiffPanelOpen],
   );
   const addDiffSurface = useCallback(
     () => openChangesFromThreadPanel("branch"),
