@@ -37,6 +37,7 @@ import {
   CloudDownloadIcon,
   CloudUploadIcon,
   FileDiffIcon,
+  FilePenLineIcon,
   GitBranchPlusIcon,
   GitCommitIcon,
   InfoIcon,
@@ -144,7 +145,7 @@ interface GitActionsControlProps {
   onOpenPullRequest?: ((number: number) => void) | undefined;
   displayMode?: "toolbar" | "panel";
   compact?: boolean;
-  onOpenChanges?: () => void;
+  onOpenChanges?: (scope: "branch" | "unstaged") => void;
 }
 
 interface PendingDefaultBranchAction {
@@ -1969,13 +1970,38 @@ export default function GitActionsControl({
           size="sm"
           part="row"
           disabled={!onOpenChanges}
-          onClick={onOpenChanges}
+          onClick={() => onOpenChanges?.("branch")}
         >
           <FileDiffIcon className={THREAD_DETAILS_PANEL_ICON_CLASS} aria-hidden />
           <span className="flex-1 text-left">Changes</span>
           <span className="flex items-center gap-1 font-mono text-2xs tabular-nums">
             <span className="text-success">+{changesTotals?.insertions ?? 0}</span>
             <span className="text-destructive">-{changesTotals?.deletions ?? 0}</span>
+          </span>
+        </ThreadDetailsControl>
+      ) : null}
+
+      {isPanel && isRepo ? (
+        <ThreadDetailsControl
+          type="button"
+          variant="ghost"
+          size="sm"
+          part="row"
+          disabled={!onOpenChanges}
+          onClick={() => onOpenChanges?.("unstaged")}
+        >
+          <FilePenLineIcon className={THREAD_DETAILS_PANEL_ICON_CLASS} aria-hidden />
+          <span className="flex-1 text-left">Uncommitted</span>
+          <span className="flex items-center gap-1 font-mono text-2xs tabular-nums">
+            <span className="text-muted-foreground">
+              {allFiles.length} {allFiles.length === 1 ? "file" : "files"}
+            </span>
+            <span className="text-success">
+              +{gitStatusForActions?.workingTree.insertions ?? 0}
+            </span>
+            <span className="text-destructive">
+              -{gitStatusForActions?.workingTree.deletions ?? 0}
+            </span>
           </span>
         </ThreadDetailsControl>
       ) : null}
