@@ -5444,15 +5444,19 @@ export default function ChatView(props: ChatViewProps) {
     },
     [activeThreadRef, canOperatePreview, openPreview],
   );
-  const addDiffSurface = useCallback(() => {
-    if (!activeThreadRef || !isServerThread || !isGitRepo) return;
-    useDiffPanelStore.getState().selectGitScope(activeThreadRef, "branch");
-    useRightPanelStore.getState().open(activeThreadRef, "diff");
-    onDiffPanelOpen?.();
-  }, [activeThreadRef, isGitRepo, isServerThread, onDiffPanelOpen]);
-  const openChangesFromThreadPanel = useCallback(() => {
-    addDiffSurface();
-  }, [addDiffSurface]);
+  const openChangesFromThreadPanel = useCallback(
+    (scope: "branch" | "unstaged") => {
+      if (!activeThreadRef || !isServerThread || !isGitRepo) return;
+      useDiffPanelStore.getState().selectGitScope(activeThreadRef, scope);
+      useRightPanelStore.getState().open(activeThreadRef, "diff");
+      onDiffPanelOpen?.();
+    },
+    [activeThreadRef, isGitRepo, isServerThread, onDiffPanelOpen],
+  );
+  const addDiffSurface = useCallback(
+    () => openChangesFromThreadPanel("branch"),
+    [openChangesFromThreadPanel],
+  );
   const addFilesSurface = useCallback(() => {
     if (!activeThreadRef || !activeProject) return;
     useRightPanelStore.getState().open(activeThreadRef, "files");
