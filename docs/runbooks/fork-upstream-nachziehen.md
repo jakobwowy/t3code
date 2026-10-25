@@ -59,6 +59,15 @@ git push origin wowy
 
 Nach dem Nachziehen die Tests der eigenen Features laufen lassen, keine repo-weiten Checks (siehe `AGENTS.md`).
 
+Zusätzlich `volta run --node 24.21.0 vp run check:changed main`: Format, Lint, Knip, Typprüfung der betroffenen Pakete und Tests neben den Änderungen. Für Browser-Tests einmalig `vp exec playwright install chromium-headless-shell` in `apps/web`.
+
+**Lange nicht nachgezogen (Erfahrung vom 25.10.2026, 2451 Upstream-Commits):** Upstream baut die Einhängestellen um, rerere hilft dann nicht. Bewährt hat sich:
+
+1. In einem eigenen Worktree arbeiten, Haupt-Checkout und `wowy` bleiben bis zum grünen Check unberührt: `git worktree add ../t3code-sync -b sync/<feature> feat/<feature>`.
+2. Konfliktdateien auf die Upstream-Fassung setzen (`git checkout --ours <datei>` während des Rebase) und die eigene Ergänzung an der neuen Stelle neu einsetzen, statt Konfliktblöcke zu verschmelzen.
+3. Zielstand bauen: `sync/target` von `main`, beide Features hineinmergen, Fork-Doku aus `wowy` holen, `check:changed main` grün.
+4. `wowy` ohne Force-Push nachziehen: Merge-Commit mit dem Baum des Zielstands und den Eltern `wowy`, `main` und den Features (`git commit-tree <baum> -p wowy -p main -p sync/...`), dann `git merge --ff-only`. Die rebasten Features liegen als `sync/*` vor, `feat/*` und `origin/feat/*` bleiben auf dem alten Stand, bis entschieden ist, ob sie ersetzt werden.
+
 ## Starten
 
 **Erprobung (jetzt):** Dev-Lauf aus dem Haupt-Checkout.
@@ -77,7 +86,7 @@ Den Dev-Lauf für die Arbeit im Alltag selbst im Terminal starten und auf `wowy`
 
 Der Dev-Lauf nutzt `~/.t3/dev` und ein eigenes Electron-Profil. Die installierte Release-App und `~/.t3/userdata` bleiben unberührt. Echte Daten als Kopie holen: `vp run migrate-dev-db` bei gestopptem Dev-Lauf. Einstellungen bei Bedarf aus `~/.t3/userdata` kopieren (`settings.json`, `keybindings.json`, `client-settings.json`), nie verlinken.
 
-**Alltag als App:** aus `wowy` ein DMG bauen. Am 10.10.2026 erstmals gebaut, rund fünf Minuten.
+**Alltag als App:** aus `wowy` ein DMG bauen. Am 10.10.2026 erstmals gebaut, rund fünf Minuten. Zuletzt am 25.10.2026 als `0.1.3-nightly.20261025.1`.
 
 ```sh
 volta run --node 24.21.0 vp run dist:desktop:dmg:arm64 --build-version 0.0.46-nightly.JJJJMMTT.N
@@ -88,6 +97,8 @@ volta run --node 24.21.0 vp run dist:desktop:dmg:arm64 --build-version 0.0.46-ni
 - Ergebnis in `release/` (gitignored): DMG und ZIP, unsigniert, ohne `app-update.yml`. Der Eigenbau hat keinen Update-Feed, Upstream überschreibt ihn nicht. Neue Versionen kommen nur durch Nachziehen und Neubauen.
 - Beim Neubau `N` oder das Datum hochzählen, die App in `/Applications` ersetzen.
 - Umgebungsvariablen liest die Desktop-App aus dem Shell-Profil. Für die Heartbeats `export T3CODE_WAKATIME_ENABLED=true` in `~/.zshrc`.
+- **T3 Connect braucht `.env` beim Bau.** Ohne `cp .env.example .env` fehlen dem Bau die öffentlichen Clerk- und Relay-Kennungen, die App zeigt dann kein „Sign in to T3 Connect“ (so beim Bau vom 15.10.2026). `.env` ist gitignored und enthält keine Geheimnisse.
+- Seit Upstream 0.1.x Versionen nach dem Muster `0.1.3-nightly.JJJJMMTT.N` wählen. App und Server müssen dieselbe Protokoll-Linie haben, sonst verweigern sie die Verbindung (Mac mini läuft mit `t3` 0.1.2, die iPhone-App 2.1.0 gehört zur selben Linie).
 
 Der Eigenbau hat dieselbe App-ID wie die Release-App (`com.t3tools.t3code`) und nutzt denselben Datenordner `~/.t3/userdata`. Beim ersten Start kopiert er `state.sqlite` einmalig nach `statev2.sqlite` und arbeitet auf der Kopie, die Release-App 0.0.45 bleibt auf dem Original. Threads laufen danach auseinander, Einstellungen und Anhänge bleiben gemeinsam (Upstream: `docs/user/thread-migration.md`). Vor dem ersten Start sichern:
 
