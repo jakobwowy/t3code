@@ -1,6 +1,19 @@
 import { sanitizeNewRefName } from "@t3tools/shared/git";
+import { sourceControlClients } from "@t3tools/client-runtime/source-control-clients";
+import { resolveSendEnvMode } from "@t3tools/shared/projectSettings";
+import type { ComposerDraftWorkspaceSelection } from "../../state/use-composer-drafts";
 
 type WorkspaceMode = "local" | "worktree";
+
+export function resolveNewTaskWorkspaceSelection(input: {
+  readonly selection: ComposerDraftWorkspaceSelection | undefined;
+  readonly fallback: ComposerDraftWorkspaceSelection;
+  readonly isGitRepo: boolean;
+}): ComposerDraftWorkspaceSelection {
+  const selection = input.selection ?? input.fallback;
+  const mode = resolveSendEnvMode({ requestedEnvMode: selection.mode, isGitRepo: input.isGitRepo });
+  return input.isGitRepo ? selection : { mode, branch: null, worktreePath: null };
+}
 
 export function resolveNewTaskWorkspaceLabel(input: {
   readonly workspaceMode: WorkspaceMode;
@@ -63,7 +76,12 @@ export function resolveNewTaskBranchLabel(input: {
   readonly branchName: string | null;
   readonly startFromOrigin: boolean;
   readonly workspaceMode: WorkspaceMode;
+  readonly pullRequestReference?: string;
 }): string {
+  if (input.workspaceMode === "worktree" && input.pullRequestReference) {
+    const parsed = sourceControlClients.parseChangeRequestUrl(input.pullRequestReference);
+    if (parsed) return `From ${parsed.definition.changeRequest.shortLabel} #${parsed.link.number}`;
+  }
   if (!input.branchName) {
     return "Choose branch";
   }
@@ -72,8 +90,8 @@ export function resolveNewTaskBranchLabel(input: {
     return input.branchName;
   }
 
-  const baseRef = input.startFromOrigin ? `origin/${input.branchName}` : input.branchName;
-  return `From ${baseRef}`;
+  // Only the server can determine a local branch's configured remote.
+  return input.startFromOrigin ? `From ${input.branchName} (remote)` : `From ${input.branchName}`;
 }
 
 export function shouldCheckoutNewTaskBranch(input: {

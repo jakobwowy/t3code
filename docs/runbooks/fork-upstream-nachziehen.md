@@ -4,16 +4,16 @@ Gilt nur für den Fork `jakobwowy/t3code`. Diese Datei liegt ausschließlich auf
 
 ## Aufbau
 
-| Remote | Repo | Rechte |
-|---|---|---|
-| `upstream` | `pingdotgg/t3code` | nur lesen |
-| `origin` | `jakobwowy/t3code` (öffentlich) | schreiben |
+| Remote     | Repo                            | Rechte    |
+| ---------- | ------------------------------- | --------- |
+| `upstream` | `pingdotgg/t3code`              | nur lesen |
+| `origin`   | `jakobwowy/t3code` (öffentlich) | schreiben |
 
-| Branch | Rolle | Regel |
-|---|---|---|
-| `main` | Spiegel von `upstream/main` | nie eigene Commits, nur Fast-Forward |
-| `feat/<name>` | ein Feature | von `main` abzweigen, upstream-tauglich, nichts Fork-Eigenes |
-| `wowy` | Integrationsbranch, daraus wird die eigene App gebaut | `main` plus alle `feat/*` plus Fork-Eigenes (dieses Runbook) |
+| Branch        | Rolle                                                 | Regel                                                        |
+| ------------- | ----------------------------------------------------- | ------------------------------------------------------------ |
+| `main`        | Spiegel von `upstream/main`                           | nie eigene Commits, nur Fast-Forward                         |
+| `feat/<name>` | ein Feature                                           | von `main` abzweigen, upstream-tauglich, nichts Fork-Eigenes |
+| `wowy`        | Integrationsbranch, daraus wird die eigene App gebaut | `main` plus alle `feat/*` plus Fork-Eigenes (dieses Runbook) |
 
 Der Fork ist öffentlich. Pläne, Notizen und alles mit Bezug zum business-os bleiben außerhalb des Repos (Quick-Project im `business-os-hub`). Zugangsdaten kommen nie in den Code.
 

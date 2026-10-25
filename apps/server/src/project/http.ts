@@ -1,7 +1,7 @@
 import {
-  AuthOrchestrationOperateScope,
   AuthOrchestrationReadScope,
   EnvironmentHttpApi,
+  requiredScopesForProjectMutation,
 } from "@t3tools/contracts";
 import * as Effect from "effect/Effect";
 import * as HttpApiBuilder from "effect/http-api/HttpApiBuilder";
@@ -17,7 +17,7 @@ import * as ServerRuntimeStartup from "../serverRuntimeStartup.ts";
 import * as ProjectService from "./ProjectService.ts";
 import { projectMutationOperation } from "./ProjectMutation.ts";
 
-export const failProjectMutation = Effect.fn("environment.projects.failMutation")(function* (
+const failProjectMutation = Effect.fn("environment.projects.failMutation")(function* (
   cause: ProjectService.ProjectServiceError | ServerRuntimeStartup.ServerRuntimeStartupError,
 ) {
   if (
@@ -53,7 +53,9 @@ export const layer = HttpApiBuilder.group(
         "mutate",
         Effect.fn("environment.projects.mutate")(function* (args) {
           yield* annotateEnvironmentRequest(args.endpoint.name);
-          yield* requireEnvironmentScope(AuthOrchestrationOperateScope);
+          for (const scope of requiredScopesForProjectMutation(args.payload)) {
+            yield* requireEnvironmentScope(scope);
+          }
           const operation = projectMutationOperation(projects, args.payload);
           return yield* startup
             .enqueueCommand(operation)

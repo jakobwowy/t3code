@@ -1,37 +1,31 @@
-import { type ReactNode, type RefObject, useLayoutEffect, useRef, useState } from "react";
+import {
+  type CSSProperties,
+  type ReactNode,
+  type RefObject,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 
 import { isElectron } from "~/env";
 import {
-  getPreviewPanelMaxWidth,
   type PreviewPanelInlineSize,
   usePreviewPanelInlineSize,
 } from "~/hooks/usePreviewPanelInlineSize";
-
-export { getPreviewPanelMaxWidth };
+import { RESIZABLE_WIDTH_PROPERTY } from "~/hooks/useResizableWidth";
 import { cn } from "~/lib/utils";
 
 import { RightPanelResizeHandle } from "./RightPanelResizeHandle";
 
 export type PreviewPanelMode = "inline" | "sheet" | "sidebar" | "embedded";
 
-/**
- * Shell for the preview panel. In inline mode the panel is user-resizable
- * via a drag handle on the left edge; width persists per browser. In
- * sheet/sidebar modes the parent owns the size.
- */
 interface PreviewPanelShellProps {
   mode: PreviewPanelMode;
   maximized?: boolean;
   inlineSize?: PreviewPanelInlineSize;
   open?: boolean;
-  /**
-   * Overrides the localStorage key used to persist the panel width. Callers
-   * embedding this shell for a different surface (e.g. the pull requests
-   * page) should pass their own key so resizing one panel doesn't clobber
-   * the other's remembered width.
-   */
+  /** Use a distinct key per surface to keep remembered widths independent. */
   widthStorageKey?: string;
-  /** Overrides the initial width (px) before the user has resized the panel. */
   defaultWidth?: number;
   children: ReactNode;
 }
@@ -67,9 +61,9 @@ function PreviewPanelShellFrame(
   const maximized = props.maximized ?? false;
   const localHostRef = useRef<HTMLDivElement | null>(null);
   const hostRef = props.hostRef ?? localHostRef;
+  const returnedFocus = useRef(false);
   const { width, handlers } = props.inlineSize;
-  // Derive suppression before the layout commits so the browser never creates
-  // a width transition for resize or maximize changes.
+  // Suppress transitions before commit so resize/maximize changes never start width transitions.
   const [layoutTransition, setLayoutTransition] = useState(() => ({
     open,
     width,
@@ -105,6 +99,34 @@ function PreviewPanelShellFrame(
       window.cancelAnimationFrame(restoreFrame);
     };
   }, [suppressWidthTransition]);
+  useLayoutEffect(() => {
+    const host = hostRef.current;
+    if (!host || !collapsible) return;
+    return () => {
+      if (!host.contains(host.ownerDocument.activeElement) && !returnedFocus.current) return;
+      // Unmount moves the toggle; restore focus at its committed location if removal sent focus to body.
+      queueMicrotask(() => {
+        if (host.ownerDocument.activeElement === host.ownerDocument.body) {
+          host.ownerDocument.querySelector<HTMLButtonElement>("[data-right-panel-toggle]")?.focus();
+        }
+      });
+    };
+  }, [collapsible, hostRef]);
+  useLayoutEffect(() => {
+    const host = hostRef.current;
+    if (!host) return;
+    const collapsed = collapsible && !open;
+    if (!collapsed) returnedFocus.current = false;
+    // Move focus before making its current owner inert, while the toggle is reachable.
+    if (collapsed && host.contains(host.ownerDocument.activeElement)) {
+      const toggle = host.ownerDocument.querySelector<HTMLButtonElement>(
+        "[data-right-panel-toggle]",
+      );
+      toggle?.focus();
+      returnedFocus.current = toggle !== null && host.ownerDocument.activeElement === toggle;
+    }
+    host.toggleAttribute("inert", collapsed);
+  }, [collapsible, open, hostRef]);
   return (
     <div
       ref={hostRef}
@@ -112,7 +134,8 @@ function PreviewPanelShellFrame(
         "relative flex h-full min-h-0 min-w-0 max-w-full flex-col self-stretch bg-background",
         isInline
           ? maximized
-            ? "flex-1 border-l border-border"
+            ? // Maximizing meets the sidebar border or window edge; omit the duplicate border.
+              "flex-1"
             : "shrink-0 border-l border-border"
           : "w-full",
         collapsible &&
@@ -122,10 +145,15 @@ function PreviewPanelShellFrame(
       )}
       style={
         isInline
-          ? {
-              width: maximized ? "100%" : collapsible && !open ? "0px" : `${width}px`,
+          ? ({
+              [RESIZABLE_WIDTH_PROPERTY]: `${width}px`,
+              width: maximized
+                ? "100%"
+                : collapsible && !open
+                  ? "0px"
+                  : `var(${RESIZABLE_WIDTH_PROPERTY})`,
               transitionDuration: suppressWidthTransition ? "0ms" : undefined,
-            }
+            } as CSSProperties)
           : undefined
       }
       data-preview-panel-mode={props.mode}
@@ -135,7 +163,11 @@ function PreviewPanelShellFrame(
       <div className={cn("h-full min-h-0 w-full", collapsible && "overflow-clip")}>
         <div
           className="flex h-full min-h-0 min-w-0 flex-col"
-          style={collapsible && !maximized ? { width: `calc(${width}px - 1px)` } : undefined}
+          style={
+            collapsible && !maximized
+              ? { width: `calc(var(${RESIZABLE_WIDTH_PROPERTY}) - 1px)` }
+              : undefined
+          }
         >
           {props.children}
         </div>

@@ -1,7 +1,14 @@
 # Source control
 
-T3 Code integrates with GitHub, GitLab, Forgejo, Gitea, Bitbucket, and Azure DevOps to clone and publish
-repositories, create pull requests, and review changes.
+T3 Code integrates with GitHub, GitLab, Forgejo, Gitea, Bitbucket, Azure DevOps, and GitCafe to clone
+and publish repositories, create pull requests, and review changes.
+
+## Review turn changes
+
+A turn's changed files and diff show only the turn's own work. When a turn pulls, merges, or
+rebases, the files Git brought in are left out. A file stays in the list when the turn edited it,
+committed it, or fixed a conflict in it. Use the branch comparison to review everything that changed
+against your base branch. Restore still returns the complete saved workspace.
 
 ## Connect an account
 
@@ -57,18 +64,18 @@ glab auth login
 
 ### Bitbucket
 
-Open **Settings → Source Control**, expand **Bitbucket**, and choose how to sign in:
+Open **Settings → Source Control**, expand **Bitbucket**, and enter one of:
 
 - **Access token**: a token created for one repository, project, or workspace. It can only reach
   what it was created for.
-- **API token**: an Atlassian API token for your account, used with your account email. It can
+- **Atlassian account email** and **API token**: an Atlassian API token for your account. It can
   reach every repository you can. Give it read/write access to repositories and pull requests, plus
   user read access (`read:user:bitbucket`).
 
-Choose **Save**; the change applies right away, and replaces any credential saved with the other
-method. Credentials are saved on the environment's server, so select a remote environment to
-configure it. Saved tokens can't be viewed again; enter a new one to replace it, or choose
-**Remove**.
+A field saves when you leave it, and applies right away. The access token wins when both are saved.
+Credentials are saved on the environment's server, so select a remote environment to configure
+it. Saved tokens can't be viewed again; enter a new one to replace it, or choose **Remove** to clear
+everything saved for Bitbucket.
 
 If no credentials are saved, T3 Code falls back to these variables in the server's environment.
 Restart the server after changing them:
@@ -80,6 +87,11 @@ export T3CODE_BITBUCKET_EMAIL="you@example.com"
 export T3CODE_BITBUCKET_API_TOKEN="your-token"
 ```
 
+For a background service, put these `KEY=VALUE` entries in
+[`service.env`](./background-service.md#configure-the-service-environment)
+under T3 home, then run `t3 service restart`. Service installation and updates
+preserve that file.
+
 ### Azure DevOps
 
 Install [Azure CLI](https://learn.microsoft.com/en-us/cli/azure/), add the DevOps extension, and sign in:
@@ -89,12 +101,31 @@ az extension add --name azure-devops
 az login
 ```
 
+### GitCafe
+
+Install the GitCafe CLI and sign in:
+
+```bash
+bun install -g @gitcafe/cli
+cafe auth login --host https://git.cafe/api
+```
+
+Alternatively, open **Settings → Source Control**, expand **GitCafe**, and enter a token. It is
+kept in the server's secret store, applies right away, and is used before `CAFE_TOKEN` and the
+`cafe` login. Or set `CAFE_TOKEN` in the server's environment and restart it. Both tokens are only
+sent to `git.cafe`; `CAFE_TOKEN` follows `CAFE_HOST` if you set it. Repositories on
+`staging.git.cafe` need their own login with `--host https://staging.git.cafe/api`.
+
+Line comments are not available for GitCafe pull requests yet.
+Merging a stack lands it through GitCafe, and updating a branch restacks the layers above it.
+
 ## Start, clone, or publish a project
 
 To start from nothing, choose **New project** in the command palette (`Cmd/Ctrl+K`), or
 **New project** under **Add Project** on any client, and type a name. T3 Code makes a Git
 repository in `~/.t3/projects` (the `projects` folder of your T3 data directory) with a README,
-an icon, and a first commit, then opens a new thread in it. The folder is named after the project,
+an icon, and a first commit, then opens a new thread in it. Until the project has a thread, new
+threads work in its folder, even when your default is a new worktree. The folder is named after the project,
 like `pinball-stats` for "Pinball Stats". Turn on **Create private repository on GitHub** to also
 publish it. If Git has no name or email on that machine, the project is created without the
 first commit.
@@ -103,7 +134,9 @@ Use **Add Project** in the command palette (`Cmd/Ctrl+K`) to clone a repository.
 provider or paste a Git URL, then choose where to save it. The project opens right away while the
 clone runs in the background: you can write your first prompt, and sending waits until the files
 are in place. A toast tracks progress and lets you cancel; if the clone fails, retry it from the
-toast or from the banner above the composer.
+toast or from the banner above the composer. When the host refuses the machine's SSH key, T3 Code
+clones over HTTPS with Git's credentials for that host instead, and the project's remote uses the
+HTTPS URL.
 
 For a local Git repository without a remote, **Publish Repository** creates a hosted repository,
 adds it as `origin`, and pushes your commits. If there are no commits yet, it creates the remote;
@@ -112,7 +145,12 @@ make your first commit before pushing.
 ## Create a pull request
 
 Use a thread's Git actions to commit, push, and create a pull request. T3 Code can generate commit
-messages, review titles, and descriptions from your changes.
+messages, review titles, and descriptions from your changes. Descriptions also draw on the work in
+the thread, including the checks it ran.
+
+An existing fork PR can appear beside the branch even if you pushed without setting an upstream.
+If its badge is missing because several remotes hold that branch, set the branch's upstream to
+the intended remote with `git branch --set-upstream-to=<remote>/<branch>`.
 
 Choose the writing style and model in **Settings → Source Control**. **Repository conventions**
 uses the project's instructions and recent commit subjects.
@@ -122,6 +160,15 @@ uses the project's instructions and recent commit subjects.
 Open **Pull requests** to review changes and comments, request reviewers, check out a branch,
 or merge. You can edit review titles and descriptions and your own comments where the host allows it.
 GitLab calls these merge requests.
+
+On mobile, **Pull requests** lists reviews across your connected environments. Open a review
+to read its description, activity, commits, and changed files. Line comments stay as drafts
+until you submit the review. **Work on PR** opens a chat with the review attached; sending
+the first message prepares a worktree from the review's branch.
+
+Previously loaded lists, review details, guides, and diff pages remain readable on mobile
+without a connection, including after restarting the app. Saved content refreshes when the
+environment reconnects; submitting changes requires a connection.
 
 Enable **Remove agent credits when merging** in Settings → Source Control to remove recognized
 agent co-author and generated-by lines from GitHub merge and squash commit messages. Human
@@ -136,15 +183,16 @@ Press **Escape** before releasing to cancel. Failed closes stay in the list so y
 GitHub, GitLab, and Azure DevOps support auto-merge while checks are outstanding. GitHub also
 supports approving waiting fork workflows and opening a revert pull request for a merged change.
 
-GitHub sharing is off by default. In Settings → Connections → GitHub sharing (Environments on mobile), choose
-**Read PRs** or **Read and act** for each environment you trust to share GitHub access.
+Pull request sharing is off by default. In Settings → Connections → Pull request sharing (Pull
+request routing under Environments on mobile), choose **Read PRs** or **Read and act** for each
+environment you trust to share its source control access.
 Enable both the original environment and the environment answering its requests on this client.
-**Read and act** can use broader GitHub permissions than the original environment's credential;
+**Read and act** can use broader permissions than the original environment's credential;
 only enable it for environments you control and trust. Changing a saved endpoint or removing an
 environment clears its permission.
 
-GitHub review details, linked PR status, and permitted review actions can then use another
-connected environment signed in to the same GitHub account. Each needs a project on that host.
+Review details, linked PR status, and permitted review actions can then use another connected
+environment signed in to the same account on the same host. Each needs a project on that host.
 A connected local environment is preferred for actions and can answer slow or failed reads.
 Browsers and mobile clients need a paired environment to use its GitHub credentials.
 Credentials stay on their machines. Previously verified credentials remain usable for routing
@@ -154,6 +202,40 @@ PR creation from Git actions continue to use the project's environment.
 
 For Azure DevOps, use the host website to change comments. Bitbucket does not support reopening a
 declined pull request.
+
+### Review guides
+
+Review guides are in beta. Turn on **Review guides** in Settings → Source Control to add the
+**Guide** tab to pull requests on that server. On mobile, move between stops with **Next**
+and the back button; a stale guide offers a rewrite and hides excerpts that no longer match
+the current change.
+
+The **Guide** tab gives you a tour of a pull request without reading it line by line: stops
+through the change in reading order. Each stop points at the lines worth reading, and a stop marked
+**Look closely** has a call only a maintainer can make. Mechanical changes such as renames and
+snapshots are grouped at the end, and every changed file appears somewhere on the tour.
+Conversations already resolved in review are left out. For a pull request in a stack, the guide
+covers that layer only, and may point out what a lower layer introduced or what a higher one uses.
+
+Choose **Write guide** to have the review guide model from Settings → Source Control read the
+change in a temporary checkout; without one set, the source control writer model is used. Nothing
+in the checkout is changed, and a large pull request takes a few minutes; you can go elsewhere in
+the app. On web, you are told when the guide is ready; on mobile, return to the guide to check
+its progress. Claude and Codex can write guides. The guide is
+kept for everyone using this server. To write it again, for example after a push or after changing
+the model or instructions, choose **Rewrite guide** from the pull request's **⋯** menu.
+
+On web, while reading a stop, select lines in an excerpt to add a comment to your review or ask an agent
+about them; comments wait with the ones from the **Code** tab until you send the review. Choose a
+suggested question, or **Ask about this stop**, to open a thread that already knows which stop you
+are on. **Finish review** on the last stop opens the review with everything you collected.
+
+Agents can write guides too: ask one to prepare guides for a set of pull requests, and it starts
+them for you. Each is read through the project whose checkout has that repository.
+
+To shape guides to your taste, write **Review guide instructions** in Settings → Source Control,
+such as what to show first or what to skip; projects can override them. They change emphasis and
+ordering, not the guide's layout or which files it covers.
 
 ### Mark files as viewed
 
@@ -166,8 +248,8 @@ in either direction. Forgejo, GitLab, Bitbucket, and Azure DevOps expose no reco
 server you are connected to keeps them instead: they follow you across the apps connected to that
 server, but the host's own site will not show them, and the count reads **viewed in T3 Code**.
 
-The **Code** tab is a web and desktop surface. The mobile app reports a pull request's status but
-does not show its diff, so marks are made and read on web and desktop.
+On mobile, open a changed file and mark it viewed from its header. Viewed files collapse,
+and their marks follow the same rules as on web and desktop.
 
 ## Troubleshooting
 
@@ -210,7 +292,8 @@ watching inside GitHub's rate limit. Comments from your own account do not wake 
 when the pull request merges or closes, after 10 wakes in a row that bring only comments, after 8
 failed reads in a row, or when you press Stop on the thread. A rate limit only pauses watching.
 Settling or archiving a thread also ends all its watches. Unsettle the thread before starting a new
-watch. Subagents cannot watch pull requests; the thread that delegated to them does. To start or stop
+watch. Watching a pull request again does not repeat check or conflict news its last
+watch already reported; unlinking the pull request clears that. Subagents cannot watch pull requests; the thread that delegated to them does. To start or stop
 it yourself, use the row menu in the **Linked pull requests** panel. In the thread details card, a
 watched pull request shows an eye; click it to stop watching.
 

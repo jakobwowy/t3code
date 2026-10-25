@@ -1,18 +1,12 @@
 /**
- * WakaTime heartbeats for the thread a foreground client is displaying.
- *
- * Off unless `T3CODE_WAKATIME_ENABLED` is set. `api_url` and `api_key` come
- * from the WakaTime config file, as with every other WakaTime plugin. A thread
- * gets a heartbeat when it enters the foreground and another every two minutes
- * while it stays there. A heartbeat carries the project folder name, the
- * branch, and the thread id; never prompts, titles, or file contents.
- *
- * @module WakaTimeHeartbeats
+ * WakaTime heartbeats for the thread a foreground client displays. Off unless
+ * `T3CODE_WAKATIME_ENABLED` is set; key and endpoint come from the WakaTime config.
+ * Heartbeats carry project folder, branch and thread id, never prompts or file contents.
  */
 import * as NodeOS from "node:os";
 
 import type { BackgroundPolicySnapshot, ThreadId } from "@t3tools/contracts";
-import { HostProcessArchitecture, HostProcessPlatform } from "@t3tools/shared/hostProcess";
+import * as HostProcess from "@t3tools/shared/HostProcess";
 import * as Clock from "effect/Clock";
 import * as Config from "effect/Config";
 import * as Effect from "effect/Effect";
@@ -138,8 +132,8 @@ const make = Effect.gen(function* () {
   const projectStore = yield* ProjectStore.ProjectStoreV2;
   const vcsStatus = yield* VcsStatusBroadcaster.VcsStatusBroadcaster;
   const httpClient = yield* HttpClient.HttpClient;
-  const hostPlatform = yield* HostProcessPlatform;
-  const hostArchitecture = yield* HostProcessArchitecture;
+  const hostPlatform = yield* HostProcess.Platform;
+  const hostArchitecture = yield* HostProcess.Architecture;
   const pendingRef = yield* Ref.make<ReadonlyArray<Heartbeat>>([]);
   // A displayed thread and the retry loop must not send the same batch at once.
   const flushLock = yield* Semaphore.make(1);

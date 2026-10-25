@@ -33,7 +33,10 @@ export class ThreadTitleRegenerationService extends Context.Service<
         | { readonly type: "regenerate" };
     }) => Effect.Effect<
       void,
-      OrchestratorV2Error | ProjectStore.ProjectStoreV2Error | ServerSettingsError
+      | OrchestratorV2Error
+      | ProjectStore.ProjectStoreV2Error
+      | ServerSettingsError
+      | ThreadManagementService.ThreadManagementProviderInstanceDisabledError
     >;
   }
 >()("t3/orchestration-v2/ThreadTitleRegenerationService") {}
@@ -112,6 +115,7 @@ const make = Effect.gen(function* () {
         message: context.message,
         attachments: context.attachments,
         ...(input.kind.type === "regenerate" ? { previousTitle: projection.thread.title } : {}),
+        instructions: settings.threadTitleInstructions,
         modelSelection: settings.textGenerationModelSelection,
       });
       const generatedTitle = result.title.trim();

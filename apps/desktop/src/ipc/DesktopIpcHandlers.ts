@@ -41,6 +41,7 @@ import {
   getAppBranding,
   getLocalEnvironmentBootstraps,
   getLocalEnvironmentBearerToken,
+  getRelayTelemetryEnabled,
   getSystemLocale,
   getWindowFullscreenState,
   openExternal,
@@ -48,6 +49,7 @@ import {
   checkSystemPermission,
   pasteAsText,
   probeRemoteEditors,
+  revealWindow,
   pickFolder,
   pickProjectFavicon,
   pickThemeFiles,
@@ -70,6 +72,7 @@ import {
 } from "./methods/snapShot.ts";
 import * as PreviewIpc from "./methods/preview.ts";
 import * as AppActivationIpc from "./methods/appActivation.ts";
+import * as WebLinksIpc from "./methods/webLinks.ts";
 import {
   completeLegacyLocalStorage,
   takeLegacyLocalStorage,
@@ -88,10 +91,12 @@ export const installDesktopIpcHandlers = Effect.fn("desktop.ipc.installHandlers"
 
   yield* ipc.handle(AppActivationIpc.setReady);
   yield* ipc.handle(AppActivationIpc.complete);
+  yield* ipc.handle(WebLinksIpc.setReady);
 
   yield* ipc.handleSync(takeLegacyLocalStorage);
   yield* ipc.handle(completeLegacyLocalStorage);
   yield* ipc.handleSync(getAppBranding);
+  yield* ipc.handleSync(getRelayTelemetryEnabled);
   yield* ipc.handleSync(getSystemLocale);
   yield* ipc.handleSync(getWindowFullscreenState);
   yield* ipc.handleSync(getLocalEnvironmentBootstraps);
@@ -148,6 +153,7 @@ export const installDesktopIpcHandlers = Effect.fn("desktop.ipc.installHandlers"
   yield* ipc.handle(openSystemSettings);
   yield* ipc.handle(checkSystemPermission);
   yield* ipc.handle(pasteAsText);
+  yield* ipc.handle(revealWindow);
   yield* ipc.handle(probeRemoteEditors);
   yield* ipc.handle(getUpdateState);
   yield* ipc.handle(setUpdateChannel);
@@ -158,7 +164,11 @@ export const installDesktopIpcHandlers = Effect.fn("desktop.ipc.installHandlers"
   yield* ipc.handle(installCliCommand);
   yield* ipc.handle(uninstallCliCommand);
   for (const previewMethod of PreviewIpc.methods) {
-    yield* ipc.handle(previewMethod);
+    // Explicit types preserve the error/service union of these heterogeneous preview methods.
+    yield* ipc.handle<
+      Effect.Error<ReturnType<(typeof PreviewIpc.methods)[number]["handler"]>>,
+      Effect.Services<ReturnType<(typeof PreviewIpc.methods)[number]["handler"]>>
+    >(previewMethod);
   }
   yield* ipc.handle(PreviewIpc.listBrowserImportSources);
   yield* ipc.handle(PreviewIpc.importBrowserCookies);

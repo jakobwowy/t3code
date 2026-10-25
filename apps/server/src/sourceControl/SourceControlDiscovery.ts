@@ -10,7 +10,7 @@ import * as Option from "effect/Option";
 
 import * as ServerConfig from "../config.ts";
 import * as VcsProcess from "../vcs/VcsProcess.ts";
-import { detailFromCause, firstNonEmptyLine } from "./SourceControlProviderDiscovery.ts";
+import { detailFromCause, firstNonEmptyLine } from "@t3tools/source-control-core/server/discovery";
 import * as SourceControlProviderRegistry from "./SourceControlProviderRegistry.ts";
 
 interface DiscoveryProbe {
@@ -64,7 +64,7 @@ export class SourceControlDiscovery extends Context.Service<
   }
 >()("t3/sourceControl/SourceControlDiscovery") {}
 
-/** @public Service construction is part of the canonical Effect module API. */
+/** @public */
 export const make = Effect.gen(function* () {
   const config = yield* ServerConfig.ServerConfig;
   const process = yield* VcsProcess.VcsProcess;

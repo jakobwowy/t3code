@@ -2,12 +2,16 @@ import { MessageId, ThreadId, OrchestratorMcpFailure, ProjectId } from "@t3tools
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Option from "effect/Option";
+import * as ThreadLaunch from "../../../orchestration-v2/ThreadLaunchService.ts";
 import * as ThreadMessageIntake from "../../../orchestration-v2/ThreadMessageIntake.ts";
 import * as Claims from "../../../orchestration-v2/AttachmentClaims.ts";
 import * as Project from "../../../project/ProjectService.ts";
 import * as ManagedProjectFolders from "../../../project/ManagedProjectFolders.ts";
 import * as Repositories from "../../../sourceControl/SourceControlRepositoryService.ts";
 import * as GitVcsDriver from "../../../vcs/GitVcsDriver.ts";
+import * as ServerSettings from "../../../serverSettings.ts";
+import { resolveProjectSettings } from "@t3tools/shared/projectSettings";
+import { resolveRuntimeMode } from "../../OrchestratorMcpService.ts";
 import * as McpToolAccess from "../../McpToolAccess.ts";
 import { newCommandId, readCaller, resolveProjectId, unavailable } from "../../threadAccess.ts";
 import { ProjectToolkit } from "./tools.ts";
@@ -23,11 +27,7 @@ function projectFailure(error: Project.ProjectServiceError) {
   return new OrchestratorMcpFailure({ code: "invalid_request", message });
 }
 
-/**
- * An existing checkout a launch may bind: one of the project's own git
- * worktrees. Without this check a launch could point an agent at any directory
- * on the machine.
- */
+/** Require project worktrees so launches cannot target arbitrary host directories. */
 const assertProjectWorktree = Effect.fn("mcp.assertProjectWorktree")(function* (
   workspaceRoot: string,
   worktreePath: string,
@@ -103,10 +103,45 @@ export const layer = McpToolAccess.toLayer(ProjectToolkit, {
             });
           yield* assertProjectWorktree(project.workspaceRoot, input.workspaceStrategy.worktreePath);
         }
+        // Reject unresolved base refs before accepting a launch; worktree provisioning happens later.
+        const strategy = input.workspaceStrategy;
+        if (strategy?.type === "worktree")
+          yield* ThreadLaunch.ThreadLaunchService.pipe(
+            Effect.flatMap((launches) =>
+              launches.checkWorktreeBase({ projectId, workspaceStrategy: strategy }),
+            ),
+            Effect.mapError(
+              (error) =>
+                new OrchestratorMcpFailure({
+                  code: "invalid_request",
+                  message: `${error.message} No thread was created. Pass a branch, tag, or commit that exists there${
+                    strategy.startFromOrigin === true
+                      ? "; the project has no usable remote to fetch it from."
+                      : ", or set startFromOrigin:true if it exists only on a remote."
+                  }`,
+                }),
+            ),
+          );
+        // A caller outside a thread has nothing to inherit, so it starts with the
+        // project's effective defaults, as the composer does. Its mode stays
+        // within the ceiling it was approved with.
+        const projectDefaults =
+          caller === undefined
+            ? yield* ServerSettings.ServerSettingsService.pipe(
+                Effect.flatMap((settings) => settings.getSettings),
+                Effect.mapError(unavailable),
+                Effect.flatMap((settings) =>
+                  Effect.map(
+                    readProject,
+                    (project) => resolveProjectSettings(settings, projectId, project).settings,
+                  ),
+                ),
+              )
+            : undefined;
         const modelSelection =
           input.modelSelection ??
           caller?.modelSelection ??
-          (yield* readProject)?.defaultModelSelection ??
+          projectDefaults?.defaultModelSelection ??
           undefined;
         if (modelSelection === undefined)
           return yield* new OrchestratorMcpFailure({
@@ -114,13 +149,19 @@ export const layer = McpToolAccess.toLayer(ProjectToolkit, {
             message:
               "Pass modelSelection: the project has no default model. orchestrator_capabilities lists providers and models.",
           });
+        const startedRuntimeMode =
+          projectDefaults !== undefined && input.runtimeMode === undefined
+            ? yield* resolveRuntimeMode(runtimeMode, projectDefaults.defaultRuntimeMode).pipe(
+                Effect.orElseSucceed(() => runtimeMode),
+              )
+            : runtimeMode;
         const result = yield* ThreadMessageIntake.launchThread({
           commandId,
           threadId,
           projectId,
           title: input.title,
           modelSelection,
-          runtimeMode,
+          runtimeMode: startedRuntimeMode,
           interactionMode,
           workspaceStrategy: input.workspaceStrategy ?? { type: "root" },
           ...(input.message === undefined && attachments.length === 0
@@ -136,11 +177,21 @@ export const layer = McpToolAccess.toLayer(ProjectToolkit, {
           createdBy: "agent",
           creationSource: "mcp",
         }).pipe(
-          Effect.mapError((error) =>
-            error._tag === "AttachmentClaimError"
-              ? new OrchestratorMcpFailure({ code: "orchestration_error", message: error.message })
-              : unavailable(),
-          ),
+          Effect.mapError((error) => {
+            if (error._tag === "AttachmentClaimError") {
+              return new OrchestratorMcpFailure({
+                code: "orchestration_error",
+                message: error.message,
+              });
+            }
+            if (error._tag === "ThreadManagementProviderInstanceDisabledError") {
+              return new OrchestratorMcpFailure({
+                code: "invalid_request",
+                message: error.message,
+              });
+            }
+            return unavailable();
+          }),
         );
         const thread = result.projection.thread;
         const run = result.projection.runs.find((run) => run.userMessageId === messageId);
@@ -179,8 +230,7 @@ export const layer = McpToolAccess.toLayer(ProjectToolkit, {
     Effect.gen(function* () {
       const projects = yield* Project.ProjectService;
       if (workspaceRoot === undefined) {
-        // Project creation records no model default (only an update does), so
-        // reject what this mode would otherwise drop silently.
+        // Only updates record model defaults; reject defaults that creation would silently drop.
         if (
           input.scripts !== undefined ||
           input.createWorkspaceRootIfMissing !== undefined ||

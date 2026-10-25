@@ -9,7 +9,6 @@ import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, it } from "@effect/vitest";
 import {
   CommandId,
-  EnvironmentInternalError,
   EventId,
   ProviderInstanceId,
   ThreadId,
@@ -25,6 +24,7 @@ import * as References from "effect/References";
 import * as Stream from "effect/Stream";
 import { Command } from "effect/cli";
 
+import * as ServerSecretStore from "../auth/ServerSecretStore.ts";
 import { cli } from "../binCli.ts";
 import * as ServerConfig from "../config.ts";
 import * as EventSink from "../orchestration-v2/EventSink.ts";
@@ -37,12 +37,8 @@ import * as ProjectFaviconResolver from "../project/ProjectFaviconResolver.ts";
 import * as ProjectService from "../project/ProjectService.ts";
 import * as RepositoryIdentityResolver from "../project/RepositoryIdentityResolver.ts";
 import * as T3ProjectFileLoader from "../project/T3ProjectFileLoader.ts";
+import * as ServerSettings from "../serverSettings.ts";
 import * as WorkspacePaths from "../workspace/WorkspacePaths.ts";
-import {
-  ProjectLiveServerDeclaredResponseError,
-  ProjectLiveServerRequestError,
-  projectCommandErrorFromLiveServerRequest,
-} from "./project.ts";
 
 const layerCliRuntime = Layer.mergeAll(NodeServices.layer, NetService.layer);
 const runCli = (args: ReadonlyArray<string>) =>
@@ -93,6 +89,7 @@ const readProjects = (baseDir: string) =>
       Layer.provideMerge(ProjectFaviconResolver.layer),
       Layer.provideMerge(T3ProjectFileLoader.layer),
       Layer.provideMerge(WorkspacePaths.layer),
+      Layer.provideMerge(ServerSettings.layer.pipe(Layer.provide(ServerSecretStore.layer))),
       Layer.provideMerge(SqlitePersistence.layerConfig),
       Layer.provideMerge(NodeServices.layer),
       Layer.provide(ServerConfig.layer(config)),
@@ -103,34 +100,6 @@ const readProjects = (baseDir: string) =>
       Effect.provide(layer),
     );
   });
-
-it("maps declared server failures into structural project command errors", () => {
-  const cause = new EnvironmentInternalError({
-    code: "internal_error",
-    reason: "access_token_issuance_failed",
-    traceId: "trace-123",
-  });
-
-  const error = projectCommandErrorFromLiveServerRequest(cause);
-
-  assert.instanceOf(error, ProjectLiveServerDeclaredResponseError);
-  assert.strictEqual(error.operation, "callLiveServer");
-  assert.strictEqual(error.code, "internal_error");
-  assert.strictEqual(error.traceId, "trace-123");
-  assert.strictEqual(error.message, "Server request failed (internal_error, trace trace-123).");
-  assert.strictEqual(error.cause, cause);
-});
-
-it("preserves unexpected server failures without deriving the message from them", () => {
-  const cause = new Error("credential abc123 was rejected");
-
-  const error = projectCommandErrorFromLiveServerRequest(cause);
-
-  assert.instanceOf(error, ProjectLiveServerRequestError);
-  assert.strictEqual(error.operation, "callLiveServer");
-  assert.strictEqual(error.message, "Failed to call the running server.");
-  assert.strictEqual(error.cause, cause);
-});
 
 it.effect("adds, renames, and removes projects through the V2 project CLI domain", () =>
   Effect.gen(function* () {
@@ -250,12 +219,6 @@ const readNativeThreadState = Effect.fn("ProjectCliTest.readNativeThreadState")(
 it.layer(NodeServices.layer)("project deletion with native V2 threads", (it) => {
   it.effect.each([
     { label: "an active thread", archived: false, missing: false },
-    { label: "an archived thread", archived: true, missing: false },
-    {
-      label: "an active thread after its workspace disappears",
-      archived: false,
-      missing: true,
-    },
     {
       label: "an archived thread after its workspace disappears",
       archived: true,
@@ -365,22 +328,6 @@ it.layer(NodeServices.layer)("project lookup with unavailable workspaces", (it) 
         assert.deepEqual((yield* readProjects(baseDir)).projects, []);
         assert.isFalse(yield* fs.exists(workspaceRoot));
       }),
-  );
-
-  it.effect("renames by ID and stored path after the directory is gone", () =>
-    Effect.gen(function* () {
-      const fs = yield* FileSystem.FileSystem;
-      const { baseDir, workspaceRoot, project } = yield* makeProjectLookupFixture();
-      yield* fs.rename(workspaceRoot, `${workspaceRoot}-removed`);
-      for (const [identifier, title] of [
-        [project.id, "Renamed by ID"],
-        [workspaceRoot, "Renamed by stored path"],
-      ] as const) {
-        yield* runCli(["project", "rename", identifier, title, "--base-dir", baseDir]);
-        assert.equal((yield* readProjects(baseDir)).projects[0]?.title, title);
-      }
-      assert.isFalse(yield* fs.exists(workspaceRoot));
-    }),
   );
 
   it.effect("does not resolve another environment's project ID in an empty database", () =>

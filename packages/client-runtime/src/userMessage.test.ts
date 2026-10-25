@@ -1,27 +1,11 @@
-import { ScheduledTaskId } from "@t3tools/contracts";
 import { describe, expect, it } from "vite-plus/test";
+
+import { GuestMessageId } from "@t3tools/contracts";
 
 import { resolveUserMessagePresentation } from "./userMessage.ts";
 
 describe("resolveUserMessagePresentation", () => {
   const legacyText = "[Triggered by schedule task: Daily audit]\n\nCheck for crashes.\n";
-
-  it("removes attribution from legacy scheduled prompts", () => {
-    expect(
-      resolveUserMessagePresentation({ role: "user", createdBy: "agent", text: legacyText }),
-    ).toEqual({ text: "Check for crashes.\n", isAutomation: true, scheduledTaskId: undefined });
-  });
-
-  it("uses task metadata without changing the prompt", () => {
-    expect(
-      resolveUserMessagePresentation({
-        role: "user",
-        createdBy: "agent",
-        scheduledTaskId: ScheduledTaskId.make("task-1"),
-        text: legacyText,
-      }),
-    ).toEqual({ text: legacyText, isAutomation: true, scheduledTaskId: "task-1" });
-  });
 
   it("preserves user-written and assistant-quoted schedule headers", () => {
     for (const message of [
@@ -31,23 +15,43 @@ describe("resolveUserMessagePresentation", () => {
     ]) {
       expect(resolveUserMessagePresentation({ ...message, text: legacyText })).toEqual({
         text: legacyText,
-        isAutomation: false,
+        attribution: null,
         scheduledTaskId: undefined,
       });
     }
   });
 
-  it("leaves other agent prompts and embedded headers intact", () => {
-    for (const text of [
-      "Review this area",
-      `Quoted prompt:\n${legacyText}`,
-      "[Triggered by schedule task: Daily audit]",
-    ]) {
-      expect(resolveUserMessagePresentation({ role: "user", createdBy: "agent", text })).toEqual({
+  it("shows a guest's own words and name, not the attributed text the agent reads", () => {
+    expect(
+      resolveUserMessagePresentation({
+        role: "user",
+        createdBy: "user",
+        text: "Message from guest Sam, sent by the owner:\n\nWhy?",
+        context: {
+          guest: {
+            guestMessageId: GuestMessageId.make("guest-message:one"),
+            name: "Sam",
+            text: "Why?",
+          },
+        },
+      }),
+    ).toEqual({ text: "Why?", attribution: "guest", scheduledTaskId: undefined, guestName: "Sam" });
+  });
+
+  it("attributes older server-sent restart continuations to T3 Code, not another agent", () => {
+    const text = "Note: the T3 server restarted.";
+    expect(
+      resolveUserMessagePresentation({
+        role: "user",
+        createdBy: "agent",
+        creationSource: "server",
         text,
-        isAutomation: false,
-        scheduledTaskId: undefined,
-      });
+      }),
+    ).toMatchObject({ attribution: "t3code" });
+    for (const creationSource of ["mcp", "provider"] as const) {
+      expect(
+        resolveUserMessagePresentation({ role: "user", createdBy: "agent", creationSource, text }),
+      ).toMatchObject({ attribution: "agent" });
     }
   });
 
@@ -62,7 +66,7 @@ describe("resolveUserMessagePresentation", () => {
         }),
       ).toEqual({
         text: "Check for crashes.\n",
-        isAutomation: true,
+        attribution: "automation",
         scheduledTaskId: "task:daily-audit",
       });
     }
