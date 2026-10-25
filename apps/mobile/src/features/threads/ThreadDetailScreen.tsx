@@ -399,6 +399,15 @@ function ThreadVisitWatermark(props: {
   const lastVisitDispatchRef = useRef({ threadKey: selectedThreadKey, at: 0 });
   const selectedThreadId = thread.id;
   const snoozedUntil = thread.snoozedUntil;
+  // The thread subscription outlives the screen while a turn runs, so the
+  // displayed thread is reported on its own.
+  useEffect(() => {
+    if (!showContent) return;
+    return retainMobileBackgroundScope(props.environmentId, {
+      type: "thread",
+      threadId: selectedThreadId,
+    });
+  }, [props.environmentId, selectedThreadId, showContent]);
   // Keep the clock in state so React Compiler invalidates the wake calculation.
   const [wakeNow, setWakeNow] = useState(() => new Date().toISOString());
   useEffect(() => {
@@ -1195,16 +1204,6 @@ export const ThreadDetailScreen = function ThreadDetailScreen(props: ThreadDetai
   useLayoutEffect(() => {
     selectedThreadKeyRef.current = selectedThreadKey;
   }, [selectedThreadKey]);
-
-  // The thread subscription outlives this screen while a turn runs, so the
-  // displayed thread is reported on its own.
-  useEffect(() => {
-    if (!showContent) return;
-    return retainMobileBackgroundScope(props.environmentId, {
-      type: "thread",
-      threadId: selectedThreadId,
-    });
-  }, [props.environmentId, selectedThreadId, showContent]);
 
   useEffect(() => {
     setAnchorMessageId(null);

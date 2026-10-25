@@ -1,13 +1,7 @@
 /**
- * WakaTime heartbeats for the thread a foreground client is displaying.
- *
- * Off unless `T3CODE_WAKATIME_ENABLED` is set. `api_url` and `api_key` come
- * from the WakaTime config file, as with every other WakaTime plugin. A thread
- * gets a heartbeat when it enters the foreground and another every two minutes
- * while it stays there. A heartbeat carries the project folder name, the
- * branch, and the thread id; never prompts, titles, or file contents.
- *
- * @module WakaTimeHeartbeats
+ * WakaTime heartbeats for the thread a foreground client displays. Off unless
+ * `T3CODE_WAKATIME_ENABLED` is set; key and endpoint come from the WakaTime config.
+ * Heartbeats carry project folder, branch and thread id, never prompts or file contents.
  */
 import * as NodeOS from "node:os";
 
