@@ -26,7 +26,6 @@ import * as Ref from "effect/Ref";
 import * as Result from "effect/Result";
 import * as Schedule from "effect/Schedule";
 import * as Semaphore from "effect/Semaphore";
-import * as Stream from "effect/Stream";
 
 import packageJson from "../../package.json" with { type: "json" };
 import * as BackgroundPolicy from "../background/BackgroundPolicy.ts";
@@ -38,6 +37,8 @@ const DEFAULT_API_URL = "https://api.wakatime.com/api/v1";
 // WakaTime counts a heartbeat for at most two minutes.
 const HEARTBEAT_INTERVAL = "2 minutes";
 const HOST_IDLE_CUTOFF_SECONDS = 15 * 60;
+// The background policy publishes no changes, and a growing `idleSeconds` would not be one.
+const RECONCILE_INTERVAL = "5 seconds";
 const RETRY_INTERVAL = "30 seconds";
 const SEND_TIMEOUT = "10 seconds";
 // The bulk endpoint accepts at most 25 heartbeats per request.
@@ -234,15 +235,6 @@ const make = Effect.gen(function* () {
     yield* flush;
   });
 
-  // A growing `idleSeconds` publishes nothing, so every beat rereads the policy.
-  // The loop outlives any one heartbeat, and `record` already traces each of them.
-  const recordWhileDisplayed = Effect.fnUntraced(function* (threadId: ThreadId) {
-    while (foregroundThreadIds(yield* backgroundPolicy.snapshot).has(threadId)) {
-      yield* record(threadId);
-      yield* Effect.sleep(HEARTBEAT_INTERVAL);
-    }
-  });
-
   const reconcile = Effect.fn("WakaTimeHeartbeats.reconcile")(function* (
     snapshot: BackgroundPolicySnapshot,
   ) {
@@ -253,15 +245,20 @@ const make = Effect.gen(function* () {
       }
     }
     for (const threadId of displayed) {
-      yield* FiberMap.run(displayedThreads, threadId, recordWhileDisplayed(threadId), {
-        onlyIfMissing: true,
-      });
+      yield* FiberMap.run(
+        displayedThreads,
+        threadId,
+        record(threadId).pipe(Effect.andThen(Effect.sleep(HEARTBEAT_INTERVAL)), Effect.forever),
+        { onlyIfMissing: true },
+      );
     }
   });
 
-  const { latest, changes } = yield* backgroundPolicy.subscribe;
-  yield* reconcile(latest);
-  yield* Stream.runForEach(changes, reconcile).pipe(Effect.forkScoped);
+  yield* backgroundPolicy.snapshot.pipe(
+    Effect.flatMap(reconcile),
+    Effect.repeat(Schedule.spaced(RECONCILE_INTERVAL)),
+    Effect.forkScoped,
+  );
   yield* flush.pipe(Effect.repeat(Schedule.spaced(RETRY_INTERVAL)), Effect.forkScoped);
 });
 

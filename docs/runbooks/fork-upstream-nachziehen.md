@@ -59,6 +59,8 @@ git push origin wowy
 
 Nach dem Nachziehen die Tests der eigenen Features laufen lassen, keine repo-weiten Checks (siehe `AGENTS.md`).
 
+Ein sauberer Merge beweist nichts: Upstream löscht ungenutzte APIs. Am 30.10.2026 verschwand `BackgroundPolicy.subscribe` ohne Konflikt, erst die Typprüfung zeigte es. Die Heartbeats lesen seitdem alle fünf Sekunden `BackgroundPolicy.snapshot`. Auf dem Mac schlagen rund ein Dutzend Server-Tests auch ohne Fork-Änderung fehl (Pfad `/private/var`, Git-Hooks, npm-Installation), maßgeblich ist der Vergleich mit dem Stand davor.
+
 Zusätzlich `volta run --node 24.21.0 vp run check:changed main`: Format, Lint, Knip, Typprüfung der betroffenen Pakete und Tests neben den Änderungen. Für Browser-Tests einmalig `vp exec playwright install chromium-headless-shell` in `apps/web`.
 
 **Lange nicht nachgezogen (Erfahrung vom 25.10.2026, 2451 Upstream-Commits):** Upstream baut die Einhängestellen um, rerere hilft dann nicht. Bewährt hat sich:

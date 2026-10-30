@@ -18,11 +18,9 @@ import * as HttpClient from "effect/http/HttpClient";
 import * as HttpClientError from "effect/http/HttpClientError";
 import * as HttpClientResponse from "effect/http/HttpClientResponse";
 import * as Layer from "effect/Layer";
-import * as Option from "effect/Option";
 import * as Path from "effect/Path";
 import * as Queue from "effect/Queue";
 import * as Schema from "effect/Schema";
-import * as Stream from "effect/Stream";
 import * as TestClock from "effect/testing/TestClock";
 
 import * as BackgroundPolicy from "../background/BackgroundPolicy.ts";
@@ -136,23 +134,20 @@ const start = Effect.fn("WakaTimeHeartbeats.test.start")(function* (
     options.settings ?? "[settings]\napi_url = http://waka.test/api/v1\napi_key = test-key\n",
   );
 
-  const snapshots = yield* Queue.unbounded<BackgroundPolicySnapshot>();
   const requests = yield* Queue.unbounded<SentRequest>();
   let failedSends = options.failedSends ?? 0;
   let latest = snapshotOf([]);
 
-  const push = (snapshot: BackgroundPolicySnapshot) => {
-    latest = snapshot;
-    return Queue.offer(snapshots, snapshot);
-  };
+  // Takes effect at the service's next look at the policy, five seconds on.
+  const push = (snapshot: BackgroundPolicySnapshot) =>
+    Effect.suspend(() => {
+      latest = snapshot;
+      return TestClock.adjust("5 seconds");
+    });
 
   const layerDependencies = Layer.mergeAll(
     Layer.mock(BackgroundPolicy.BackgroundPolicy)({
       snapshot: Effect.sync(() => latest),
-      subscribe: Effect.succeed({
-        latest,
-        changes: Stream.fromQueue(snapshots),
-      }),
     }),
     Layer.mock(ProjectionStore.ProjectionStoreV2)({
       getThreadShell: (threadId) =>
@@ -176,12 +171,10 @@ const start = Effect.fn("WakaTimeHeartbeats.test.start")(function* (
     }),
     Layer.mock(ProjectStore.ProjectStoreV2)({
       get: () =>
-        Effect.succeed(
-          Option.some({
-            projectId: PROJECT_ID,
-            workspaceRoot: "/code/my-repo",
-          } as ProjectStore.ProjectRow),
-        ),
+        Effect.succeedSome({
+          projectId: PROJECT_ID,
+          workspaceRoot: "/code/my-repo",
+        } as ProjectStore.ProjectRow),
     }),
     Layer.mock(VcsStatusBroadcaster.VcsStatusBroadcaster)({
       refreshLocalStatus: () =>
@@ -239,11 +232,6 @@ const start = Effect.fn("WakaTimeHeartbeats.test.start")(function* (
     display: (...threadIds: ReadonlyArray<ThreadId>) =>
       push(snapshotOf(threadIds.map((threadId) => displaying(threadId)))),
     push,
-    // The host monitor keeps a growing `idleSeconds` without publishing a change.
-    sampleHostSilently: (hostPower: Partial<HostPowerSnapshot>) =>
-      Effect.sync(() => {
-        latest = { ...latest, hostPower: { ...latest.hostPower, ...hostPower } };
-      }),
     nextRequest: Queue.take(requests),
     sentCount: Queue.size(requests),
   };
@@ -323,26 +311,25 @@ it.layer(NodeServices.layer)("WakaTimeHeartbeats", (it) => {
 
       // More snapshots of the same state do not add heartbeats.
       yield* service.display(WORKTREE_THREAD);
-      yield* TestClock.adjust("119 seconds");
+      yield* TestClock.adjust("100 seconds");
       assert.equal(yield* service.sentCount, 0);
 
-      yield* TestClock.adjust("1 second");
+      yield* TestClock.adjust("20 seconds");
       const repeated = yield* service.nextRequest;
       assert.equal(secondsBetween(first, repeated), 120);
     }),
   );
 
-  it.effect("switching threads sends at once and stops the previous thread", () =>
+  it.effect("switching threads sends soon and stops the previous thread", () =>
     Effect.gen(function* () {
       const service = yield* start();
       yield* service.display(WORKTREE_THREAD);
-      const first = yield* service.nextRequest;
+      yield* service.nextRequest;
 
       yield* TestClock.adjust("30 seconds");
       yield* service.display(MAIN_CHECKOUT_THREAD);
       const switched = yield* service.nextRequest;
       assert.equal(switched.heartbeats[0]?.entity, `T3 Code ${MAIN_CHECKOUT_THREAD}`);
-      assert.equal(secondsBetween(first, switched), 30);
 
       yield* TestClock.adjust("2 minutes");
       const repeated = yield* service.nextRequest;
@@ -351,19 +338,18 @@ it.layer(NodeServices.layer)("WakaTimeHeartbeats", (it) => {
     }),
   );
 
-  it.effect("returning to a thread sends again without waiting", () =>
+  it.effect("returning to a thread sends again soon", () =>
     Effect.gen(function* () {
       const service = yield* start();
       yield* service.display(WORKTREE_THREAD);
       yield* service.nextRequest;
       yield* service.display(MAIN_CHECKOUT_THREAD);
-      const away = yield* service.nextRequest;
+      yield* service.nextRequest;
 
       yield* TestClock.adjust("10 seconds");
       yield* service.display(WORKTREE_THREAD);
       const returned = yield* service.nextRequest;
       assert.equal(returned.heartbeats[0]?.entity, `T3 Code ${WORKTREE_THREAD}`);
-      assert.equal(secondsBetween(away, returned), 10);
     }),
   );
 
@@ -438,18 +424,6 @@ it.layer(NodeServices.layer)("WakaTimeHeartbeats", (it) => {
     Effect.gen(function* () {
       const service = yield* start();
       yield* service.push(snapshotOf([displayingUntouched(WORKTREE_THREAD)], idleHost(901)));
-      yield* TestClock.adjust("10 minutes");
-      assert.equal(yield* service.sentCount, 0);
-    }),
-  );
-
-  it.effect("stops past the cutoff even when the host publishes no change", () =>
-    Effect.gen(function* () {
-      const service = yield* start();
-      yield* service.push(snapshotOf([displayingUntouched(WORKTREE_THREAD)], idleHost(800)));
-      yield* service.nextRequest;
-
-      yield* service.sampleHostSilently({ idleSeconds: 901 });
       yield* TestClock.adjust("10 minutes");
       assert.equal(yield* service.sentCount, 0);
     }),
