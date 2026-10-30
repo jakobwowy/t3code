@@ -61,6 +61,8 @@ Nach dem Nachziehen die Tests der eigenen Features laufen lassen, keine repo-wei
 
 Ein sauberer Merge beweist nichts: Upstream löscht ungenutzte APIs. Am 30.10.2026 verschwand `BackgroundPolicy.subscribe` ohne Konflikt, erst die Typprüfung zeigte es. Die Heartbeats lesen seitdem alle fünf Sekunden `BackgroundPolicy.snapshot`. Auf dem Mac schlagen rund ein Dutzend Server-Tests auch ohne Fork-Änderung fehl (Pfad `/private/var`, Git-Hooks, npm-Installation), maßgeblich ist der Vergleich mit dem Stand davor.
 
+Grüne Prüfungen beweisen auch nicht, dass die App benutzbar ist. Vor dem Bau einen Thread durch den echten Client schicken: `vp run dev`, „New thread“, Provider `Replay (dev)`, tippen, senden, Antwort sehen. `window.t3dev.replay()` reicht nicht, es umgeht den Entwurf. Am 30.10.2026 ging 0.1.5 so kaputt raus: Ein Upstream-Commit las Thread-Details schon im Entwurf, der 404 galt als „Thread gelöscht“, und neue Threads zeigten keine Agent-Ausgabe mehr.
+
 Zusätzlich `volta run --node 24.21.0 vp run check:changed main`: Format, Lint, Knip, Typprüfung der betroffenen Pakete und Tests neben den Änderungen. Für Browser-Tests einmalig `vp exec playwright install chromium-headless-shell` in `apps/web`.
 
 **Lange nicht nachgezogen (Erfahrung vom 25.10.2026, 2451 Upstream-Commits):** Upstream baut die Einhängestellen um, rerere hilft dann nicht. Bewährt hat sich:
