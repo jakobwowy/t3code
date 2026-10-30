@@ -17,9 +17,10 @@ the file. Without `api_url`, heartbeats go to wakatime.com.
 
 A thread counts while a T3 Code window or the mobile app shows it and you are there: the client is
 visible and focused or recently used, and the host is not locked or asleep. Reading or dictating
-without touching the keyboard or mouse still counts. The server sends
-a heartbeat when you open or return to a thread, and again every two minutes while you stay. A
-thread whose agent keeps working after you leave does not count.
+without touching the keyboard or mouse still counts, up to 15 minutes without any input on the
+host. Using a client, such as the mobile app, counts regardless of the host. The server sends a
+heartbeat when you open or return to a thread, and again every two minutes while you stay. A thread
+whose agent keeps working after you leave does not count.
 
 Each environment reports for itself, so the machine running the server needs the WakaTime config.
 

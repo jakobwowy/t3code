@@ -93,6 +93,16 @@ function displaying(
   };
 }
 
+const idleHost = (idleSeconds: number | null): HostPowerSnapshot => ({
+  ...presentHost,
+  idle: "true",
+  idleSeconds,
+});
+
+// The window stays focused with nobody touching it.
+const displayingUntouched = (threadId: ThreadId) =>
+  displaying(threadId, { recentlyInteracted: false });
+
 function snapshotOf(
   leases: ReadonlyArray<ClientActivityLease>,
   hostPower: HostPowerSnapshot = presentHost,
@@ -129,11 +139,18 @@ const start = Effect.fn("WakaTimeHeartbeats.test.start")(function* (
   const snapshots = yield* Queue.unbounded<BackgroundPolicySnapshot>();
   const requests = yield* Queue.unbounded<SentRequest>();
   let failedSends = options.failedSends ?? 0;
+  let latest = snapshotOf([]);
+
+  const push = (snapshot: BackgroundPolicySnapshot) => {
+    latest = snapshot;
+    return Queue.offer(snapshots, snapshot);
+  };
 
   const layerDependencies = Layer.mergeAll(
     Layer.mock(BackgroundPolicy.BackgroundPolicy)({
+      snapshot: Effect.sync(() => latest),
       subscribe: Effect.succeed({
-        latest: snapshotOf([]),
+        latest,
         changes: Stream.fromQueue(snapshots),
       }),
     }),
@@ -220,8 +237,13 @@ const start = Effect.fn("WakaTimeHeartbeats.test.start")(function* (
 
   return {
     display: (...threadIds: ReadonlyArray<ThreadId>) =>
-      Queue.offer(snapshots, snapshotOf(threadIds.map((threadId) => displaying(threadId)))),
-    push: (snapshot: BackgroundPolicySnapshot) => Queue.offer(snapshots, snapshot),
+      push(snapshotOf(threadIds.map((threadId) => displaying(threadId)))),
+    push,
+    // The host monitor keeps a growing `idleSeconds` without publishing a change.
+    sampleHostSilently: (hostPower: Partial<HostPowerSnapshot>) =>
+      Effect.sync(() => {
+        latest = { ...latest, hostPower: { ...latest.hostPower, ...hostPower } };
+      }),
     nextRequest: Queue.take(requests),
     sentCount: Queue.size(requests),
   };
@@ -385,6 +407,141 @@ it.layer(NodeServices.layer)("WakaTimeHeartbeats", (it) => {
       const repeated = yield* service.nextRequest;
       assert.equal(repeated.heartbeats[0]?.entity, `T3 Code ${WORKTREE_THREAD}`);
       assert.equal(secondsBetween(first, repeated), 120);
+    }),
+  );
+
+  it.effect("keeps counting up to fifteen minutes without input", () =>
+    Effect.gen(function* () {
+      const service = yield* start();
+      yield* service.push(snapshotOf([displayingUntouched(WORKTREE_THREAD)], idleHost(900)));
+      const first = yield* service.nextRequest;
+
+      yield* TestClock.adjust("2 minutes");
+      const repeated = yield* service.nextRequest;
+      assert.equal(secondsBetween(first, repeated), 120);
+    }),
+  );
+
+  it.effect("stops past fifteen minutes without input", () =>
+    Effect.gen(function* () {
+      const service = yield* start();
+      yield* service.push(snapshotOf([displayingUntouched(WORKTREE_THREAD)]));
+      yield* service.nextRequest;
+
+      yield* service.push(snapshotOf([displayingUntouched(WORKTREE_THREAD)], idleHost(901)));
+      yield* TestClock.adjust("10 minutes");
+      assert.equal(yield* service.sentCount, 0);
+    }),
+  );
+
+  it.effect("does not start past fifteen minutes without input", () =>
+    Effect.gen(function* () {
+      const service = yield* start();
+      yield* service.push(snapshotOf([displayingUntouched(WORKTREE_THREAD)], idleHost(901)));
+      yield* TestClock.adjust("10 minutes");
+      assert.equal(yield* service.sentCount, 0);
+    }),
+  );
+
+  it.effect("stops past the cutoff even when the host publishes no change", () =>
+    Effect.gen(function* () {
+      const service = yield* start();
+      yield* service.push(snapshotOf([displayingUntouched(WORKTREE_THREAD)], idleHost(800)));
+      yield* service.nextRequest;
+
+      yield* service.sampleHostSilently({ idleSeconds: 901 });
+      yield* TestClock.adjust("10 minutes");
+      assert.equal(yield* service.sentCount, 0);
+    }),
+  );
+
+  it.effect("counts the age of an idle host sample towards the cutoff", () =>
+    Effect.gen(function* () {
+      const service = yield* start();
+      const twoMinutesLater = DateTime.add(NOW, { minutes: 2 });
+      yield* service.push({
+        ...snapshotOf(
+          [
+            displaying(WORKTREE_THREAD, {
+              recentlyInteracted: false,
+              expiresAt: DateTime.add(twoMinutesLater, { seconds: 45 }),
+            }),
+          ],
+          idleHost(800),
+        ),
+        updatedAt: twoMinutesLater,
+      });
+      yield* TestClock.adjust("10 minutes");
+      assert.equal(yield* service.sentCount, 0);
+    }),
+  );
+
+  it.effect("starts again when input returns on the host", () =>
+    Effect.gen(function* () {
+      const service = yield* start();
+      yield* service.push(snapshotOf([displayingUntouched(WORKTREE_THREAD)]));
+      yield* service.nextRequest;
+      yield* service.push(snapshotOf([displayingUntouched(WORKTREE_THREAD)], idleHost(901)));
+      yield* TestClock.adjust("10 minutes");
+      assert.equal(yield* service.sentCount, 0);
+
+      yield* service.push(snapshotOf([displayingUntouched(WORKTREE_THREAD)], idleHost(3)));
+      const returned = yield* service.nextRequest;
+      assert.equal(returned.heartbeats[0]?.entity, `T3 Code ${WORKTREE_THREAD}`);
+
+      yield* TestClock.adjust("2 minutes");
+      const repeated = yield* service.nextRequest;
+      assert.equal(secondsBetween(returned, repeated), 120);
+    }),
+  );
+
+  it.effect("a client in use counts while the host sits idle", () =>
+    Effect.gen(function* () {
+      const service = yield* start();
+      yield* service.push(snapshotOf([displayingUntouched(WORKTREE_THREAD)], idleHost(5000)));
+      yield* TestClock.adjust("10 minutes");
+      assert.equal(yield* service.sentCount, 0);
+
+      // A phone, or the window itself before the next host sample arrives.
+      yield* service.push(snapshotOf([displaying(WORKTREE_THREAD)], idleHost(5000)));
+      const request = yield* service.nextRequest;
+      assert.equal(request.heartbeats[0]?.entity, `T3 Code ${WORKTREE_THREAD}`);
+    }),
+  );
+
+  it.effect("keeps counting when the idle time is unknown or stale", () =>
+    Effect.gen(function* () {
+      const service = yield* start();
+      yield* service.push(snapshotOf([displayingUntouched(WORKTREE_THREAD)], idleHost(null)));
+      const first = yield* service.nextRequest;
+
+      yield* service.push(
+        snapshotOf([displayingUntouched(WORKTREE_THREAD)], { ...idleHost(5000), stale: true }),
+      );
+      yield* TestClock.adjust("2 minutes");
+      const repeated = yield* service.nextRequest;
+      assert.equal(secondsBetween(first, repeated), 120);
+    }),
+  );
+
+  it.effect("stops at once when a displayed thread's host locks or sleeps", () =>
+    Effect.gen(function* () {
+      const service = yield* start();
+      yield* service.display(WORKTREE_THREAD);
+      yield* service.nextRequest;
+      yield* service.push(
+        snapshotOf([displaying(WORKTREE_THREAD)], { ...presentHost, locked: "true" }),
+      );
+      yield* TestClock.adjust("10 minutes");
+      assert.equal(yield* service.sentCount, 0);
+
+      yield* service.display(WORKTREE_THREAD);
+      yield* service.nextRequest;
+      yield* service.push(
+        snapshotOf([displaying(WORKTREE_THREAD)], { ...presentHost, suspended: true }),
+      );
+      yield* TestClock.adjust("10 minutes");
+      assert.equal(yield* service.sentCount, 0);
     }),
   );
 

@@ -9,6 +9,8 @@ import type { BackgroundPolicySnapshot, ThreadId } from "@t3tools/contracts";
 import * as HostProcess from "@t3tools/shared/HostProcess";
 import * as Clock from "effect/Clock";
 import * as Config from "effect/Config";
+import * as DateTime from "effect/DateTime";
+import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Base64 from "effect/encoding/Base64";
 import * as FiberMap from "effect/FiberMap";
@@ -35,6 +37,7 @@ import * as VcsStatusBroadcaster from "../vcs/VcsStatusBroadcaster.ts";
 const DEFAULT_API_URL = "https://api.wakatime.com/api/v1";
 // WakaTime counts a heartbeat for at most two minutes.
 const HEARTBEAT_INTERVAL = "2 minutes";
+const HOST_IDLE_CUTOFF_SECONDS = 15 * 60;
 const RETRY_INTERVAL = "30 seconds";
 const SEND_TIMEOUT = "10 seconds";
 // The bulk endpoint accepts at most 25 heartbeats per request.
@@ -87,17 +90,30 @@ export function parseWakaTimeSettings(text: string) {
 }
 
 /**
+ * The host's last input is older than the cutoff. A sample can be one monitor
+ * interval old, five minutes by default on an idle host, so its age counts too.
+ */
+function isHostIdlePastCutoff({ hostPower, updatedAt }: BackgroundPolicySnapshot): boolean {
+  if (hostPower.stale || hostPower.idleSeconds === null) return false;
+  const sampleAgeSeconds = Duration.toSeconds(DateTime.distance(hostPower.updatedAt, updatedAt));
+  return hostPower.idleSeconds + sampleAgeSeconds > HOST_IDLE_CUTOFF_SECONDS;
+}
+
+/**
  * Threads a foreground client displays while the host is awake and unlocked.
- * Host idle does not count as away: reading output or dictating the next
- * prompt produces no input, but is still work.
+ * A short host idle does not count as away: reading output or dictating the
+ * next prompt produces no input, but is still work. A client in use outranks
+ * the cutoff, because a phone or remote window drives the host without input.
  */
 function foregroundThreadIds(snapshot: BackgroundPolicySnapshot): ReadonlySet<ThreadId> {
   const threadIds = new Set<ThreadId>();
   const { hostPower } = snapshot;
   const hostAway = !hostPower.stale && (hostPower.suspended || hostPower.locked === "true");
   if (hostAway) return threadIds;
+  const hostIdle = isHostIdlePastCutoff(snapshot);
   for (const lease of snapshot.leases) {
     if (!BackgroundPolicy.isForegroundLease(lease, snapshot.updatedAt)) continue;
+    if (hostIdle && !lease.recentlyInteracted) continue;
     for (const scope of lease.scopes) {
       if (scope.type === "thread") threadIds.add(scope.threadId);
     }
@@ -218,6 +234,15 @@ const make = Effect.gen(function* () {
     yield* flush;
   });
 
+  // A growing `idleSeconds` publishes nothing, so every beat rereads the policy.
+  // The loop outlives any one heartbeat, and `record` already traces each of them.
+  const recordWhileDisplayed = Effect.fnUntraced(function* (threadId: ThreadId) {
+    while (foregroundThreadIds(yield* backgroundPolicy.snapshot).has(threadId)) {
+      yield* record(threadId);
+      yield* Effect.sleep(HEARTBEAT_INTERVAL);
+    }
+  });
+
   const reconcile = Effect.fn("WakaTimeHeartbeats.reconcile")(function* (
     snapshot: BackgroundPolicySnapshot,
   ) {
@@ -228,12 +253,9 @@ const make = Effect.gen(function* () {
       }
     }
     for (const threadId of displayed) {
-      yield* FiberMap.run(
-        displayedThreads,
-        threadId,
-        record(threadId).pipe(Effect.andThen(Effect.sleep(HEARTBEAT_INTERVAL)), Effect.forever),
-        { onlyIfMissing: true },
-      );
+      yield* FiberMap.run(displayedThreads, threadId, recordWhileDisplayed(threadId), {
+        onlyIfMissing: true,
+      });
     }
   });
 
