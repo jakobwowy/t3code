@@ -9,6 +9,7 @@ import { useWorkspaceTabs } from "../../workspace/WorkspaceTabsContext";
 import { useWorkspaceSurface } from "../../workspace/useWorkspaceSurface";
 import { useDeviceType } from "../../../native/native-layout-metrics";
 import { useCompactWorkspaceTabs } from "../../workspace/useSystemWorkspaceTabBar";
+import { useAdaptiveWorkspaceLayout } from "../../layout/adaptive-workspace-context";
 import {
   ScreenScrollViewBottomInset,
   ScreenScrollViewSurface,
@@ -17,7 +18,7 @@ import {
 export { SettingsScreenContent };
 
 export function SettingsScreen(
-  props: Pick<AppBarProps, "title" | "actions" | "trailing"> & {
+  props: Pick<AppBarProps, "title" | "actions" | "trailing" | "search"> & {
     readonly children: ReactNode;
     readonly formSheet?: boolean;
     readonly workspaceRoot?: boolean;
@@ -29,6 +30,7 @@ export function SettingsScreen(
   const surface = useWorkspaceSurface();
   const deviceType = useDeviceType();
   const compactTabs = useCompactWorkspaceTabs();
+  const { layout } = useAdaptiveWorkspaceLayout();
   const cover = deviceType === "duo-folded";
   // Android opens Settings as a workspace tab; its root page has nothing to go back to.
   const workspaceRoot =
@@ -44,6 +46,7 @@ export function SettingsScreen(
       <AppBar
         title={props.title}
         actions={props.actions}
+        search={props.search}
         trailing={Platform.OS === "android" ? props.trailing : undefined}
         sidebar={false}
         onBack={workspaceRoot ? undefined : () => navigation.goBack()}
@@ -54,7 +57,11 @@ export function SettingsScreen(
           {props.formSheet ? (
             props.children
           ) : (
-            <SettingsScreenContent>{props.children}</SettingsScreenContent>
+            <SettingsScreenContent
+              insetHorizontal={Platform.OS === "android" && layout.usesSplitView}
+            >
+              {props.children}
+            </SettingsScreenContent>
           )}
         </ScreenScrollViewSurface>
       </ScreenScrollViewBottomInset>
