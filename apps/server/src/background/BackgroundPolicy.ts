@@ -55,6 +55,8 @@ function scopeKey(scope: BackgroundScope): string {
       return `${scope.type}:${scope.cwd}`;
     case "thread":
       return `${scope.type}:${scope.threadId}`;
+    case "project":
+      return `${scope.type}:${scope.projectId}`;
   }
 }
 

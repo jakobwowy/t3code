@@ -20,13 +20,15 @@ visible and focused or recently used, and the host is not locked or asleep. Read
 without touching the keyboard or mouse still counts, up to 15 minutes without any input on the
 host. Using a client, such as the mobile app, counts regardless of the host. The server sends a
 heartbeat when you open or return to a thread, and again every two minutes while you stay. A thread
-whose agent keeps working after you leave does not count.
+whose agent keeps working after you leave does not count. Writing the first prompt of a new thread
+counts on its project.
 
 Each environment reports for itself, so the machine running the server needs the WakaTime config.
 
 ## What is sent
 
-A heartbeat carries the project folder name, the branch, and the thread id. A thread in a worktree
+A heartbeat carries the project folder name, the branch, and the thread id, or the project id while
+you write a new thread's first prompt. A thread in a worktree
 reports the main repository's folder, so its time lands on the same project. Prompts, responses,
 thread titles, and file contents are never sent.
 

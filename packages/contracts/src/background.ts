@@ -3,6 +3,7 @@ import * as Schema from "effect/Schema";
 import {
   AuthSessionId,
   EnvironmentId,
+  ProjectId,
   RpcClientId,
   ThreadId,
   TrimmedNonEmptyString,
@@ -55,6 +56,8 @@ export const BackgroundScope = Schema.Union([
   Schema.Struct({ type: Schema.Literal("git-refs"), cwd: Schema.String }),
   Schema.Struct({ type: Schema.Literal("diagnostics") }),
   Schema.Struct({ type: Schema.Literal("thread"), threadId: ThreadId }),
+  // A draft that has no server thread yet.
+  Schema.Struct({ type: Schema.Literal("project"), projectId: ProjectId }),
 ]);
 export type BackgroundScope = typeof BackgroundScope.Type;
 

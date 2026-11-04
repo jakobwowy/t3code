@@ -1301,16 +1301,27 @@ export default function ChatView(props: ChatViewProps) {
   const phase = derivePhase(activeRuntime);
   const serverThreadId = serverThread?.id;
   const serverThreadEnvironmentId = serverThread?.environmentId;
+  const draftEnvironmentId = routeKind === "draft" ? draftThread?.environmentId : undefined;
+  const draftProjectId = routeKind === "draft" ? draftThread?.projectId : undefined;
   // The thread subscription outlives this view while a turn runs, so the
-  // displayed thread is reported on its own.
+  // displayed thread is reported on its own. A draft has no thread yet and
+  // reports its project instead.
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- reports the displayed thread to the server for as long as it stays on screen
   useEffect(() => {
-    if (serverThreadEnvironmentId === undefined || serverThreadId === undefined) return;
-    return retainBackgroundScope(serverThreadEnvironmentId, {
-      type: "thread",
-      threadId: serverThreadId,
-    });
-  }, [serverThreadEnvironmentId, serverThreadId]);
+    if (serverThreadEnvironmentId !== undefined && serverThreadId !== undefined) {
+      return retainBackgroundScope(serverThreadEnvironmentId, {
+        type: "thread",
+        threadId: serverThreadId,
+      });
+    }
+    if (draftEnvironmentId !== undefined && draftProjectId !== undefined) {
+      return retainBackgroundScope(draftEnvironmentId, {
+        type: "project",
+        projectId: draftProjectId,
+      });
+    }
+    return undefined;
+  }, [serverThreadEnvironmentId, serverThreadId, draftEnvironmentId, draftProjectId]);
   const setThreadError = makeThreadErrorSetter({
     routeThreadRef,
     routeThreadKey,

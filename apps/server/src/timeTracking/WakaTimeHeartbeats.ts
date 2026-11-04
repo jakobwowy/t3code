@@ -1,11 +1,11 @@
 /**
- * WakaTime heartbeats for the thread a foreground client displays. Off unless
+ * WakaTime heartbeats for the thread or draft a foreground client displays. Off unless
  * `T3CODE_WAKATIME_ENABLED` is set; key and endpoint come from the WakaTime config.
  * Heartbeats carry project folder, branch and thread id, never prompts or file contents.
  */
 import * as NodeOS from "node:os";
 
-import type { BackgroundPolicySnapshot, ThreadId } from "@t3tools/contracts";
+import type { BackgroundPolicySnapshot, BackgroundScope } from "@t3tools/contracts";
 import * as HostProcess from "@t3tools/shared/HostProcess";
 import * as Clock from "effect/Clock";
 import * as Config from "effect/Config";
@@ -16,6 +16,7 @@ import * as Base64 from "effect/encoding/Base64";
 import * as FiberMap from "effect/FiberMap";
 import * as FileSystem from "effect/FileSystem";
 import * as HttpClient from "effect/http/HttpClient";
+import * as HttpClientError from "effect/http/HttpClientError";
 import * as HttpClientRequest from "effect/http/HttpClientRequest";
 import * as HttpClientResponse from "effect/http/HttpClientResponse";
 import * as Layer from "effect/Layer";
@@ -44,6 +45,8 @@ const SEND_TIMEOUT = "10 seconds";
 // The bulk endpoint accepts at most 25 heartbeats per request.
 const MAX_HEARTBEATS_PER_REQUEST = 25;
 const MAX_PENDING_HEARTBEATS = 500;
+
+type DisplayedScope = Extract<BackgroundScope, { readonly type: "thread" | "project" }>;
 
 interface Heartbeat {
   readonly entity: string;
@@ -101,25 +104,37 @@ function isHostIdlePastCutoff({ hostPower, updatedAt }: BackgroundPolicySnapshot
 }
 
 /**
- * Threads a foreground client displays while the host is awake and unlocked.
- * A short host idle does not count as away: reading output or dictating the
- * next prompt produces no input, but is still work. A client in use outranks
- * the cutoff, because a phone or remote window drives the host without input.
+ * The server refused the batch itself, so sending it again cannot succeed and
+ * would hold back every heartbeat queued behind it.
  */
-function foregroundThreadIds(snapshot: BackgroundPolicySnapshot): ReadonlySet<ThreadId> {
-  const threadIds = new Set<ThreadId>();
+function isRejected(error: unknown): boolean {
+  if (!HttpClientError.isHttpClientError(error) || error.reason._tag !== "StatusCodeError") {
+    return false;
+  }
+  const { status } = error.reason.response;
+  return status >= 400 && status < 500 && status !== 408 && status !== 429;
+}
+
+/**
+ * Threads and drafts a foreground client displays on an awake, unlocked host.
+ * Reading or dictating produces no input but is work, so a short idle counts.
+ * A client in use outranks the cutoff: a phone drives the host without input.
+ */
+function foregroundScopes(snapshot: BackgroundPolicySnapshot): ReadonlyMap<string, DisplayedScope> {
+  const displayed = new Map<string, DisplayedScope>();
   const { hostPower } = snapshot;
   const hostAway = !hostPower.stale && (hostPower.suspended || hostPower.locked === "true");
-  if (hostAway) return threadIds;
+  if (hostAway) return displayed;
   const hostIdle = isHostIdlePastCutoff(snapshot);
   for (const lease of snapshot.leases) {
     if (!BackgroundPolicy.isForegroundLease(lease, snapshot.updatedAt)) continue;
     if (hostIdle && !lease.recentlyInteracted) continue;
     for (const scope of lease.scopes) {
-      if (scope.type === "thread") threadIds.add(scope.threadId);
+      if (scope.type === "thread") displayed.set(`thread:${scope.threadId}`, scope);
+      if (scope.type === "project") displayed.set(`project:${scope.projectId}`, scope);
     }
   }
-  return threadIds;
+  return displayed;
 }
 
 const make = Effect.gen(function* () {
@@ -154,7 +169,7 @@ const make = Effect.gen(function* () {
   const pendingRef = yield* Ref.make<ReadonlyArray<Heartbeat>>([]);
   // A displayed thread and the retry loop must not send the same batch at once.
   const flushLock = yield* Semaphore.make(1);
-  const displayedThreads = yield* FiberMap.make<ThreadId>();
+  const displayedFibers = yield* FiberMap.make<string>();
 
   const bulkUrl = `${settings.apiUrl}/users/current/heartbeats.bulk`;
   const authorization = `Basic ${Base64.encode(Redacted.value(apiKey.value))}`;
@@ -185,6 +200,13 @@ const make = Effect.gen(function* () {
       if (batch.length === 0) return;
       const sent = yield* Effect.result(send(batch));
       if (Result.isSuccess(sent)) continue;
+      if (isRejected(sent.failure)) {
+        yield* Effect.logWarning("WakaTime rejected heartbeats; dropping them", {
+          heartbeats: batch.length,
+          cause: sent.failure,
+        });
+        continue;
+      }
       yield* Ref.update(pendingRef, (pending) =>
         [...batch, ...pending].slice(-MAX_PENDING_HEARTBEATS),
       );
@@ -196,33 +218,33 @@ const make = Effect.gen(function* () {
   }).pipe(flushLock.withPermit);
 
   // The project is the main repository's folder even when the thread runs in a
-  // worktree, so time lands on one project. A thread in the main checkout has
-  // no branch of its own; the checkout's current ref stands in.
-  const describeThread = Effect.fn("WakaTimeHeartbeats.describeThread")(function* (
-    threadId: ThreadId,
-  ) {
-    const thread = yield* projectionStore.getThreadShell(threadId);
-    if (thread === null) return Option.none();
-    const project = yield* projectStore.get(thread.projectId);
+  // worktree, so time lands on one project. A thread in the main checkout, or a
+  // draft, has no branch of its own; the checkout's current ref stands in.
+  const describe = Effect.fn("WakaTimeHeartbeats.describe")(function* (displayed: DisplayedScope) {
+    const thread =
+      displayed.type === "thread"
+        ? yield* projectionStore.getThreadShell(displayed.threadId)
+        : null;
+    const projectId = displayed.type === "project" ? displayed.projectId : thread?.projectId;
+    if (projectId === undefined) return Option.none();
+    const project = yield* projectStore.get(projectId);
     if (Option.isNone(project)) return Option.none();
     const { workspaceRoot } = project.value;
     const branch =
-      thread.branch ??
-      (yield* vcsStatus.refreshLocalStatus(thread.worktreePath ?? workspaceRoot).pipe(
+      thread?.branch ??
+      (yield* vcsStatus.refreshLocalStatus(thread?.worktreePath ?? workspaceRoot).pipe(
         Effect.map((status) => status.refName),
         Effect.orElseSucceed(() => null),
       ));
     return Option.some({ project: path.basename(workspaceRoot), branch });
   });
 
-  const record = Effect.fn("WakaTimeHeartbeats.record")(function* (threadId: ThreadId) {
-    const described = yield* describeThread(threadId).pipe(
-      Effect.orElseSucceed(() => Option.none()),
-    );
+  const record = Effect.fn("WakaTimeHeartbeats.record")(function* (displayed: DisplayedScope) {
+    const described = yield* describe(displayed).pipe(Effect.orElseSucceed(() => Option.none()));
     if (Option.isNone(described)) return;
     const { project, branch } = described.value;
     const heartbeat: Heartbeat = {
-      entity: `T3 Code ${threadId}`,
+      entity: `T3 Code ${displayed.type === "thread" ? displayed.threadId : displayed.projectId}`,
       type: "app",
       category: "ai coding",
       time: (yield* Clock.currentTimeMillis) / 1000,
@@ -238,17 +260,17 @@ const make = Effect.gen(function* () {
   const reconcile = Effect.fn("WakaTimeHeartbeats.reconcile")(function* (
     snapshot: BackgroundPolicySnapshot,
   ) {
-    const displayed = foregroundThreadIds(snapshot);
-    for (const [threadId] of Array.from(displayedThreads)) {
-      if (!displayed.has(threadId)) {
-        yield* FiberMap.remove(displayedThreads, threadId);
+    const displayed = foregroundScopes(snapshot);
+    for (const [key] of Array.from(displayedFibers)) {
+      if (!displayed.has(key)) {
+        yield* FiberMap.remove(displayedFibers, key);
       }
     }
-    for (const threadId of displayed) {
+    for (const [key, scope] of displayed) {
       yield* FiberMap.run(
-        displayedThreads,
-        threadId,
-        record(threadId).pipe(Effect.andThen(Effect.sleep(HEARTBEAT_INTERVAL)), Effect.forever),
+        displayedFibers,
+        key,
+        record(scope).pipe(Effect.andThen(Effect.sleep(HEARTBEAT_INTERVAL)), Effect.forever),
         { onlyIfMissing: true },
       );
     }

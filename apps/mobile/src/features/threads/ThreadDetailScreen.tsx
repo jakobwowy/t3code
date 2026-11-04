@@ -1113,16 +1113,26 @@ function ThreadDetailBody(props: ThreadDetailScreenProps) {
     ),
   );
   // The thread subscription outlives the screen while a turn runs, so the
-  // displayed thread is reported on its own.
+  // displayed thread is reported on its own. A draft has no thread yet and
+  // reports its project instead.
   const displayedThreadId = showContent && !props.draftMode ? props.selectedThread.id : null;
+  const draftProjectId = showContent && props.draftMode ? props.selectedThread.projectId : null;
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- reports the displayed thread to the server for as long as it stays on screen
   useEffect(() => {
-    if (displayedThreadId === null) return;
-    return retainMobileBackgroundScope(props.environmentId, {
-      type: "thread",
-      threadId: displayedThreadId,
-    });
-  }, [props.environmentId, displayedThreadId]);
+    if (displayedThreadId !== null) {
+      return retainMobileBackgroundScope(props.environmentId, {
+        type: "thread",
+        threadId: displayedThreadId,
+      });
+    }
+    if (draftProjectId !== null) {
+      return retainMobileBackgroundScope(props.environmentId, {
+        type: "project",
+        projectId: draftProjectId,
+      });
+    }
+    return undefined;
+  }, [props.environmentId, displayedThreadId, draftProjectId]);
   const layoutVariant = props.layoutVariant ?? "compact";
   const isSplitLayout = layoutVariant === "split";
   const contentMaxWidth =

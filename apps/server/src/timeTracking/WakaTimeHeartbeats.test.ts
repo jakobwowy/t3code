@@ -124,6 +124,7 @@ const start = Effect.fn("WakaTimeHeartbeats.test.start")(function* (
     readonly enabled?: boolean;
     readonly settings?: string;
     readonly failedSends?: number;
+    readonly rejectedSends?: number;
   } = {},
 ) {
   const fileSystem = yield* FileSystem.FileSystem;
@@ -136,6 +137,7 @@ const start = Effect.fn("WakaTimeHeartbeats.test.start")(function* (
 
   const requests = yield* Queue.unbounded<SentRequest>();
   let failedSends = options.failedSends ?? 0;
+  let rejectedSends = options.rejectedSends ?? 0;
   let latest = snapshotOf([]);
 
   // Takes effect at the service's next look at the policy, five seconds on.
@@ -207,6 +209,10 @@ const start = Effect.fn("WakaTimeHeartbeats.test.start")(function* (
             return yield* new HttpClientError.HttpClientError({
               reason: new HttpClientError.TransportError({ request, cause: "connection reset" }),
             });
+          }
+          if (rejectedSends > 0) {
+            rejectedSends -= 1;
+            return HttpClientResponse.fromWeb(request, new Response(null, { status: 400 }));
           }
           return HttpClientResponse.fromWeb(request, new Response(null, { status: 202 }));
         }),
@@ -298,6 +304,24 @@ it.layer(NodeServices.layer)("WakaTimeHeartbeats", (it) => {
       yield* service.display(MAIN_CHECKOUT_THREAD);
 
       const request = yield* service.nextRequest;
+      assert.equal(request.heartbeats[0]?.project, "my-repo");
+      assert.equal(request.heartbeats[0]?.branch, "main");
+    }),
+  );
+
+  it.effect("counts a draft on its project", () =>
+    Effect.gen(function* () {
+      const service = yield* start();
+      yield* service.push(
+        snapshotOf([
+          displaying(MAIN_CHECKOUT_THREAD, {
+            scopes: [{ type: "project", projectId: PROJECT_ID }],
+          }),
+        ]),
+      );
+
+      const request = yield* service.nextRequest;
+      assert.equal(request.heartbeats[0]?.entity, `T3 Code ${PROJECT_ID}`);
       assert.equal(request.heartbeats[0]?.project, "my-repo");
       assert.equal(request.heartbeats[0]?.branch, "main");
     }),
@@ -528,6 +552,21 @@ it.layer(NodeServices.layer)("WakaTimeHeartbeats", (it) => {
       yield* TestClock.adjust("30 seconds");
       const retried = yield* service.nextRequest;
       assert.deepEqual(retried.heartbeats, failed.heartbeats);
+    }),
+  );
+
+  it.effect("drops a batch the server rejects", () =>
+    Effect.gen(function* () {
+      const service = yield* start({ rejectedSends: 1 });
+      yield* service.display(WORKTREE_THREAD);
+      yield* service.nextRequest;
+
+      yield* TestClock.adjust("30 seconds");
+      assert.equal(yield* service.sentCount, 0);
+
+      yield* TestClock.adjust("90 seconds");
+      const next = yield* service.nextRequest;
+      assert.equal(next.heartbeats.length, 1);
     }),
   );
 
