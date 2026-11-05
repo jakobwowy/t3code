@@ -55,8 +55,6 @@ function scopeKey(scope: BackgroundScope): string {
       return `${scope.type}:${scope.cwd}`;
     case "thread":
       return `${scope.type}:${scope.threadId}`;
-    case "project":
-      return `${scope.type}:${scope.projectId}`;
   }
 }
 
@@ -111,8 +109,7 @@ function upsertClientActivityLease(
   return next;
 }
 
-/** Whether someone is looking at the client: visible, and focused or recently used. */
-export function isForegroundLease(lease: ClientActivityLease, now: DateTime.Utc): boolean {
+function isForegroundLease(lease: ClientActivityLease, now: DateTime.Utc): boolean {
   return isLeaseActive(lease, now) && lease.visible && (lease.focused || lease.recentlyInteracted);
 }
 

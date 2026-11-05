@@ -56,8 +56,6 @@ function stableScopeKey(environmentId: EnvironmentId, scope: BackgroundScope): s
       return JSON.stringify([environmentId, scope.type, scope.cwd]);
     case "thread":
       return JSON.stringify([environmentId, scope.type, scope.threadId]);
-    case "project":
-      return JSON.stringify([environmentId, scope.type, scope.projectId]);
   }
 }
 
@@ -123,14 +121,7 @@ function scopeForSubscription(
   return typeof input.cwd === "string" ? { type: "vcs-status", cwd: input.cwd } : null;
 }
 
-/**
- * Reports `scope` for `environmentId` until the returned release runs. Use it for
- * demand no subscription expresses, such as the thread a view is displaying.
- */
-export function retainBackgroundScope(
-  environmentId: EnvironmentId,
-  scope: BackgroundScope,
-): () => void {
+function retainBackgroundScope(environmentId: EnvironmentId, scope: BackgroundScope): () => void {
   const key = stableScopeKey(environmentId, scope);
   const existing = retainedScopes.get(key);
   if (existing) {
