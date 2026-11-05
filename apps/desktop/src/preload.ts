@@ -288,6 +288,9 @@ contextBridge.exposeInMainWorld("desktopBridge", {
       ipcRenderer.removeListener(IpcChannels.UPDATE_STATE_CHANNEL, wrappedListener);
     };
   },
+  timeTracking: {
+    setDisplayed: (work) => ipcRenderer.invoke(IpcChannels.TIME_TRACKING_DISPLAYED_CHANNEL, work),
+  },
   webLinks: {
     setReady: (ready) => ipcRenderer.invoke(IpcChannels.WEB_LINK_READY_CHANNEL, ready),
     onOpen: (listener) => {
