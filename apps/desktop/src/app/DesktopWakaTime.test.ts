@@ -16,6 +16,7 @@ import * as TestClock from "effect/testing/TestClock";
 
 import * as ElectronApp from "../electron/ElectronApp.ts";
 import * as ElectronPowerMonitor from "../electron/ElectronPowerMonitor.ts";
+import * as DesktopShellEnvironment from "../shell/DesktopShellEnvironment.ts";
 import * as DesktopWakaTime from "./DesktopWakaTime.ts";
 
 const WINDOW = 1;
@@ -83,6 +84,9 @@ const start = Effect.fn("DesktopWakaTime.test.start")(function* (
             getSystemIdleState: () => Effect.sync(() => machine.idleState),
           }),
           Layer.mock(ElectronApp.ElectronApp)({ on: () => Effect.void }),
+          Layer.mock(DesktopShellEnvironment.DesktopShellEnvironment)({
+            awaitDiscovery: Effect.succeed(true),
+          }),
           Layer.succeed(
             HttpClient.HttpClient,
             HttpClient.make((request) =>

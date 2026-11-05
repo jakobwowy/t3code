@@ -32,6 +32,7 @@ import * as Semaphore from "effect/Semaphore";
 import packageJson from "../../package.json" with { type: "json" };
 import * as ElectronApp from "../electron/ElectronApp.ts";
 import * as ElectronPowerMonitor from "../electron/ElectronPowerMonitor.ts";
+import * as DesktopShellEnvironment from "../shell/DesktopShellEnvironment.ts";
 
 const DEFAULT_API_URL = "https://api.wakatime.com/api/v1";
 // WakaTime counts a heartbeat for at most two minutes.
@@ -133,6 +134,7 @@ export const make = Effect.fn("DesktopWakaTime.make")(function* (options: {
   const httpClient = yield* HttpClient.HttpClient;
   const powerMonitor = yield* ElectronPowerMonitor.ElectronPowerMonitor;
   const electronApp = yield* ElectronApp.ElectronApp;
+  const shellEnvironment = yield* DesktopShellEnvironment.DesktopShellEnvironment;
   const hostPlatform = yield* HostProcess.Platform;
   const hostArchitecture = yield* HostProcess.Architecture;
   const configProvider = yield* ConfigProvider.ConfigProvider;
@@ -146,9 +148,10 @@ export const make = Effect.fn("DesktopWakaTime.make")(function* (options: {
   const flushLock = yield* Semaphore.make(1);
   const userAgent = `t3code/${packageJson.version} (${hostPlatform}-${hostArchitecture}) t3code-wakatime/${packageJson.version}`;
 
-  // The shell profile that holds the switch is read after startup, so this runs on first use.
+  // The shell profile that holds the switch is read in the background after startup.
   const loadTarget = yield* Effect.cached(
     Effect.gen(function* () {
+      yield* shellEnvironment.awaitDiscovery;
       const env = yield* WakaTimeEnvConfig;
       if (!env.enabled) return Option.none();
       const configPath = path.join(
