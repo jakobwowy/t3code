@@ -101,7 +101,8 @@ volta run --node 24.21.0 vp run dist:desktop:dmg:arm64 --build-version 0.0.46-ni
 - Die Option heißt `--build-version`. `--version` gibt nur die Version des Skripts aus und baut nichts.
 - Eine Version nach dem Muster `-nightly.JJJJMMTT.N` ergibt die App „T3 Code (Nightly)". Sie liegt damit neben der Release-App „T3 Code (Alpha)" und ersetzt sie nicht. Ohne die Option hieße der Bau wie die Release-App.
 - Ergebnis in `release/` (gitignored): DMG und ZIP, unsigniert, ohne `app-update.yml`. Der Eigenbau hat keinen Update-Feed, Upstream überschreibt ihn nicht. Neue Versionen kommen nur durch Nachziehen und Neubauen.
-- Beim Neubau `N` oder das Datum hochzählen, die App in `/Applications` ersetzen.
+- Beim Neubau `N` oder das Datum hochzählen.
+- **Installieren mit `scripts/fork-install-nightly.sh`** (optional mit Pfad zur DMG, sonst die neueste aus `release/`). Es fragt einmal nach, beendet die App, sichert `~/.t3/userdata` nach `~/.t3/backups/userdata-<datum>-vor-<version>`, legt die alte App als Rückweg in `~/.t3/backups/` ab, installiert und startet die neue. Aus einem T3-Thread aufgerufen, öffnet es sich selbst im Terminal, weil das Beenden der App sonst das Skript mitbeendet. Alte Sicherungen (je 3 bis 4 GB) löscht es nicht.
 - Umgebungsvariablen liest die Desktop-App aus dem Shell-Profil. Für die Heartbeats `export T3CODE_WAKATIME_ENABLED=true` in `~/.zshrc`.
 - **T3 Connect braucht `.env` beim Bau.** Ohne `cp .env.example .env` fehlen dem Bau die öffentlichen Clerk- und Relay-Kennungen, die App zeigt dann kein „Sign in to T3 Connect“ (so beim Bau vom 15.10.2026). `.env` ist gitignored und enthält keine Geheimnisse.
 - Seit Upstream 0.1.x Versionen nach dem Muster `0.1.3-nightly.JJJJMMTT.N` wählen. App und Server müssen dieselbe Protokoll-Linie haben, sonst verweigern sie die Verbindung (Mac mini läuft mit `t3` 0.1.2, die iPhone-App 2.1.0 gehört zur selben Linie).
