@@ -61,6 +61,8 @@ Nach dem Nachziehen die Tests der eigenen Features laufen lassen, keine repo-wei
 
 Ein sauberer Merge beweist nichts: Upstream löscht ungenutzte APIs. Am 30.10.2026 verschwand `BackgroundPolicy.subscribe` ohne Konflikt, erst die Typprüfung zeigte es. Auf dem Mac schlagen rund ein Dutzend Server-Tests auch ohne Fork-Änderung fehl (Pfad `/private/var`, Git-Hooks, npm-Installation), maßgeblich ist der Vergleich mit dem Stand davor.
 
+Neue Shell-Variablen der Desktop-App (wie `T3CODE_WAKATIME_ENABLED`) müssen seit v0.1.7 zusätzlich in `ShellEnvironmentPatch` (`packages/contracts/src/resourceTelemetry.ts`) stehen. Upstream liest die Login-Shell seitdem im Hintergrund und reicht nur diese Namen weiter; wer den Schalter liest, wartet vorher auf `DesktopShellEnvironment.awaitDiscovery`.
+
 Grüne Prüfungen beweisen auch nicht, dass die App benutzbar ist. Vor dem Bau einen Thread durch den echten Client schicken: `vp run dev`, „New thread“, Provider `Replay (dev)`, tippen, senden, Antwort sehen. `window.t3dev.replay()` reicht nicht, es umgeht den Entwurf. Am 30.10.2026 ging 0.1.5 so kaputt raus: Ein Upstream-Commit las Thread-Details schon im Entwurf, der 404 galt als „Thread gelöscht“, und neue Threads zeigten keine Agent-Ausgabe mehr.
 
 Zusätzlich `volta run --node 24.21.0 vp run check:changed main`: Format, Lint, Knip, Typprüfung der betroffenen Pakete und Tests neben den Änderungen. Für Browser-Tests einmalig `vp exec playwright install chromium-headless-shell` in `apps/web`.
@@ -90,7 +92,7 @@ Den Dev-Lauf für die Arbeit im Alltag selbst im Terminal starten und auf `wowy`
 
 Der Dev-Lauf nutzt `~/.t3/dev` und ein eigenes Electron-Profil. Die installierte Release-App und `~/.t3/userdata` bleiben unberührt. Echte Daten als Kopie holen: `vp run migrate-dev-db` bei gestopptem Dev-Lauf. Einstellungen bei Bedarf aus `~/.t3/userdata` kopieren (`settings.json`, `keybindings.json`, `client-settings.json`), nie verlinken.
 
-**Alltag als App:** aus `wowy` ein DMG bauen. Am 10.10.2026 erstmals gebaut, rund fünf Minuten. Zuletzt am 25.10.2026 als `0.1.3-nightly.20261025.1`.
+**Alltag als App:** aus `wowy` ein DMG bauen. Am 10.10.2026 erstmals gebaut, rund fünf Minuten. Zuletzt am 05.11.2026 als `0.1.7-nightly.20261105.1` (Upstream-Release v0.1.7).
 
 ```sh
 volta run --node 24.21.0 vp run dist:desktop:dmg:arm64 --build-version 0.0.46-nightly.JJJJMMTT.N
