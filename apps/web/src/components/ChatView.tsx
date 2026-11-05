@@ -1612,6 +1612,27 @@ export default function ChatView(props: ChatViewProps) {
   });
   const keybindings = useAtomValue(primaryServerKeybindingsAtom);
   const backgroundThread = use(BackgroundThreadContext);
+  // A draft has no thread yet and counts on its project.
+  const displayedWorkId = backgroundThread
+    ? undefined
+    : isServerThread
+      ? serverThread.id
+      : activeProject?.id;
+  const displayedWorkspaceRoot = activeProject?.workspaceRoot;
+  const displayedBranch = activeThread?.branch ?? gitStatusQuery.data?.refName ?? null;
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- tells the desktop app what this window shows, for time tracking
+  useEffect(() => {
+    const timeTracking = window.desktopBridge?.timeTracking;
+    if (!timeTracking || displayedWorkId === undefined || displayedWorkspaceRoot === undefined) {
+      return;
+    }
+    void timeTracking.setDisplayed({
+      id: displayedWorkId,
+      workspaceRoot: displayedWorkspaceRoot,
+      branch: displayedBranch,
+    });
+    return () => void timeTracking.setDisplayed(null);
+  }, [displayedWorkId, displayedWorkspaceRoot, displayedBranch]);
   const scriptKeybindings =
     useAtomValue(serverEnvironment.configValueAtom(environmentId))?.keybindings ??
     DEFAULT_RESOLVED_KEYBINDINGS;
