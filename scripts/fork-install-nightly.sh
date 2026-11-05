@@ -47,12 +47,9 @@ mkdir -p "$BACKUPS"
 if [[ -e "$BACKUP" ]]; then
   echo "    $BACKUP gibt es schon, wird nicht überschrieben."
 else
+  # The app is closed, so a plain copy is consistent. A read-only sqlite3 open would fail here:
+  # a cleanly closed WAL database has no -shm file, and read-only mode cannot create one.
   cp -Rp "$HOME/.t3/userdata" "$BACKUP"
-  for db in statev2.sqlite state.sqlite; do
-    if [[ -f "$HOME/.t3/userdata/$db" ]]; then
-      sqlite3 "file:$HOME/.t3/userdata/$db?mode=ro" ".backup '$BACKUP/$db'"
-    fi
-  done
   echo "    $BACKUP ($(du -sh "$BACKUP" | cut -f1))"
 fi
 
