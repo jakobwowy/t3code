@@ -59,7 +59,7 @@ git push origin wowy
 
 Nach dem Nachziehen die Tests der eigenen Features laufen lassen, keine repo-weiten Checks (siehe `AGENTS.md`).
 
-Ein sauberer Merge beweist nichts: Upstream löscht ungenutzte APIs. Am 30.10.2026 verschwand `BackgroundPolicy.subscribe` ohne Konflikt, erst die Typprüfung zeigte es. Die Heartbeats lesen seitdem alle fünf Sekunden `BackgroundPolicy.snapshot`. Auf dem Mac schlagen rund ein Dutzend Server-Tests auch ohne Fork-Änderung fehl (Pfad `/private/var`, Git-Hooks, npm-Installation), maßgeblich ist der Vergleich mit dem Stand davor.
+Ein sauberer Merge beweist nichts: Upstream löscht ungenutzte APIs. Am 30.10.2026 verschwand `BackgroundPolicy.subscribe` ohne Konflikt, erst die Typprüfung zeigte es. Auf dem Mac schlagen rund ein Dutzend Server-Tests auch ohne Fork-Änderung fehl (Pfad `/private/var`, Git-Hooks, npm-Installation), maßgeblich ist der Vergleich mit dem Stand davor.
 
 Grüne Prüfungen beweisen auch nicht, dass die App benutzbar ist. Vor dem Bau einen Thread durch den echten Client schicken: `vp run dev`, „New thread“, Provider `Replay (dev)`, tippen, senden, Antwort sehen. `window.t3dev.replay()` reicht nicht, es umgeht den Entwurf. Am 30.10.2026 ging 0.1.5 so kaputt raus: Ein Upstream-Commit las Thread-Details schon im Entwurf, der 404 galt als „Thread gelöscht“, und neue Threads zeigten keine Agent-Ausgabe mehr.
 
@@ -80,7 +80,7 @@ Zusätzlich `volta run --node 24.21.0 vp run check:changed main`: Format, Lint, 
 volta run --node 24.21.0 vp run dev:desktop
 ```
 
-Mit WakaTime-Heartbeats ans business-os (Feature `feat/wakatime-heartbeats`, Doku in `docs/user/time-tracking.md`):
+Mit WakaTime-Heartbeats ans business-os (Feature `feat/wakatime-desktop`, Doku in `docs/user/time-tracking.md`). Die Desktop-App sendet selbst, für Threads auf jedem Environment, der Server braucht dafür keinen Fork:
 
 ```sh
 env T3CODE_WAKATIME_ENABLED=true volta run --node 24.21.0 vp run dev:desktop
