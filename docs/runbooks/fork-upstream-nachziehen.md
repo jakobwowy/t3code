@@ -92,7 +92,7 @@ Den Dev-Lauf für die Arbeit im Alltag selbst im Terminal starten und auf `wowy`
 
 Der Dev-Lauf nutzt `~/.t3/dev` und ein eigenes Electron-Profil. Die installierte Release-App und `~/.t3/userdata` bleiben unberührt. Echte Daten als Kopie holen: `vp run migrate-dev-db` bei gestopptem Dev-Lauf. Einstellungen bei Bedarf aus `~/.t3/userdata` kopieren (`settings.json`, `keybindings.json`, `client-settings.json`), nie verlinken.
 
-**Alltag als App:** aus `wowy` ein DMG bauen. Am 10.10.2026 erstmals gebaut, rund fünf Minuten. Zuletzt am 05.11.2026 als `0.1.7-nightly.20261105.1` (Upstream-Release v0.1.7).
+**Alltag als App:** aus `wowy` ein DMG bauen. Am 10.10.2026 erstmals gebaut, rund fünf Minuten. Zuletzt am 06.11.2026 als `0.1.7-nightly.20261106.1` (Upstream-Release v0.1.7, WakaTime standardmäßig an).
 
 ```sh
 volta run --node 24.21.0 vp run dist:desktop:dmg:arm64 --build-version 0.0.46-nightly.JJJJMMTT.N
