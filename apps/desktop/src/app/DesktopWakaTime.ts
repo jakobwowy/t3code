@@ -1,7 +1,7 @@
 /**
  * WakaTime heartbeats for the thread or draft the focused window shows, on any
- * environment. Off unless `T3CODE_WAKATIME_ENABLED` is set; key and endpoint come
- * from the WakaTime config. Heartbeats carry project folder, branch and thread id,
+ * environment. On in this fork unless `T3CODE_WAKATIME_ENABLED=false`; without an
+ * API key nothing is sent. Key and endpoint come from the WakaTime config. Heartbeats carry project folder, branch and thread id,
  * never prompts or file contents.
  */
 import * as NodeOS from "node:os";
@@ -120,7 +120,7 @@ const folderName = (workspaceRoot: string) =>
   workspaceRoot.split(/[\\/]+/).findLast((part) => part.length > 0);
 
 const WakaTimeEnvConfig = Config.all({
-  enabled: Config.Boolean("T3CODE_WAKATIME_ENABLED").pipe(Config.withDefault(false)),
+  enabled: Config.Boolean("T3CODE_WAKATIME_ENABLED").pipe(Config.withDefault(true)),
   wakaTimeHome: Config.String("WAKATIME_HOME").pipe(Config.option),
   apiKey: Config.Redacted("WAKATIME_API_KEY").pipe(Config.option),
 });

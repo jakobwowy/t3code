@@ -5,9 +5,9 @@ server that speaks its API. Time lands on the thread's project and branch, so wo
 through agents shows up next to the time your editor already tracks. It works for threads on every
 environment you connect to, local or remote.
 
-It is off by default. To turn it on, set `T3CODE_WAKATIME_ENABLED=true` in your shell profile (for
-example `~/.zshrc`) on macOS and Linux and restart the app. On Windows, set it as a user
-environment variable.
+In this fork it is on by default and sends nothing until `~/.wakatime.cfg` holds an API key. To turn
+it off, set `T3CODE_WAKATIME_ENABLED=false` in your shell profile (for example `~/.zshrc`) on macOS
+and Linux and restart the app. On Windows, set it as a user environment variable.
 
 The app reads `api_key` and `api_url` from the `[settings]` section of `~/.wakatime.cfg`, the file
 every WakaTime plugin shares. `WAKATIME_API_KEY` overrides the key and `WAKATIME_HOME` moves the

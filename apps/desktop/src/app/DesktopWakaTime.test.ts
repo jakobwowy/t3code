@@ -311,7 +311,7 @@ describe("DesktopWakaTime", () => {
       }),
     );
 
-    it.effect("reads the switch the shell environment adds after startup", () =>
+    it.effect("is on by default and reads the environment the shell adds after startup", () =>
       Effect.gen(function* () {
         const names = ["T3CODE_WAKATIME_ENABLED", "WAKATIME_HOME"] as const;
         yield* Effect.acquireRelease(
@@ -334,7 +334,6 @@ describe("DesktopWakaTime", () => {
           awaitDiscovery: Deferred.await(discovered),
         });
 
-        process.env.T3CODE_WAKATIME_ENABLED = "true";
         process.env.WAKATIME_HOME = service.home;
         yield* Deferred.succeed(discovered, true);
         yield* service.show(THREAD);
@@ -344,7 +343,7 @@ describe("DesktopWakaTime", () => {
       }),
     );
 
-    it.effect("does nothing unless enabled", () =>
+    it.effect("does nothing when switched off", () =>
       Effect.gen(function* () {
         const service = yield* start({ enabled: false });
         yield* service.show(THREAD);

@@ -61,7 +61,7 @@ Nach dem Nachziehen die Tests der eigenen Features laufen lassen, keine repo-wei
 
 Ein sauberer Merge beweist nichts: Upstream löscht ungenutzte APIs. Am 30.10.2026 verschwand `BackgroundPolicy.subscribe` ohne Konflikt, erst die Typprüfung zeigte es. Auf dem Mac schlagen rund ein Dutzend Server-Tests auch ohne Fork-Änderung fehl (Pfad `/private/var`, Git-Hooks, npm-Installation), maßgeblich ist der Vergleich mit dem Stand davor.
 
-Neue Shell-Variablen der Desktop-App (wie `T3CODE_WAKATIME_ENABLED`) müssen seit v0.1.7 zusätzlich in `ShellEnvironmentPatch` (`packages/contracts/src/resourceTelemetry.ts`) stehen. Upstream liest die Login-Shell seitdem im Hintergrund und reicht nur diese Namen weiter; wer den Schalter liest, wartet vorher auf `DesktopShellEnvironment.awaitDiscovery`.
+Neue Shell-Variablen der Desktop-App (wie `T3CODE_WAKATIME_ENABLED`) müssen seit v0.1.7 zusätzlich in `ShellEnvironmentPatch` (`packages/contracts/src/resourceTelemetry.ts`) stehen. Upstream liest die Login-Shell seitdem im Hintergrund und reicht nur diese Namen weiter. Wer sie liest, wartet vorher auf `DesktopShellEnvironment.awaitDiscovery` und baut danach einen frischen `ConfigProvider.fromEnv()`: Effects Standard-Provider ist eine Kopie von `process.env` vom ersten Zugriff, also von vor der Erkennung. Daran fehlten vom 5. bis 6.11.2026 alle Heartbeats von Starts ohne Terminal.
 
 Grüne Prüfungen beweisen auch nicht, dass die App benutzbar ist. Vor dem Bau einen Thread durch den echten Client schicken: `vp run dev`, „New thread“, Provider `Replay (dev)`, tippen, senden, Antwort sehen. `window.t3dev.replay()` reicht nicht, es umgeht den Entwurf. Am 30.10.2026 ging 0.1.5 so kaputt raus: Ein Upstream-Commit las Thread-Details schon im Entwurf, der 404 galt als „Thread gelöscht“, und neue Threads zeigten keine Agent-Ausgabe mehr.
 
@@ -85,7 +85,7 @@ volta run --node 24.21.0 vp run dev:desktop
 Mit WakaTime-Heartbeats ans business-os (Feature `feat/wakatime-desktop`, Doku in `docs/user/time-tracking.md`). Die Desktop-App sendet selbst, für Threads auf jedem Environment, der Server braucht dafür keinen Fork:
 
 ```sh
-env T3CODE_WAKATIME_ENABLED=true volta run --node 24.21.0 vp run dev:desktop
+volta run --node 24.21.0 vp run dev:desktop
 ```
 
 Den Dev-Lauf für die Arbeit im Alltag selbst im Terminal starten und auf `wowy` lassen. Er lädt Änderungen am ausgecheckten Code sofort nach, ein Branch-Wechsel im selben Checkout ändert also die laufende App. Für paralleles Entwickeln einen Worktree nehmen.
@@ -103,7 +103,7 @@ volta run --node 24.21.0 vp run dist:desktop:dmg:arm64 --build-version 0.0.46-ni
 - Ergebnis in `release/` (gitignored): DMG und ZIP, unsigniert, ohne `app-update.yml`. Der Eigenbau hat keinen Update-Feed, Upstream überschreibt ihn nicht. Neue Versionen kommen nur durch Nachziehen und Neubauen.
 - Beim Neubau `N` oder das Datum hochzählen.
 - **Installieren mit `scripts/fork-install-nightly.sh`** (optional mit Pfad zur DMG, sonst die neueste aus `release/`). Es fragt einmal nach, beendet die App, sichert `~/.t3/userdata` bei beendeter App als einfache Kopie nach `~/.t3/backups/userdata-<datum>-vor-<version>`, legt die alte App als Rückweg in `~/.t3/backups/` ab, installiert und startet die neue. Aus einem T3-Thread aufgerufen, öffnet es sich selbst im Terminal, weil das Beenden der App sonst das Skript mitbeendet. Alte Sicherungen (je 3 bis 4 GB) löscht es nicht.
-- Umgebungsvariablen liest die Desktop-App aus dem Shell-Profil. Für die Heartbeats `export T3CODE_WAKATIME_ENABLED=true` in `~/.zshrc`.
+- Die Heartbeats sind auf `wowy` standardmäßig an (auf `feat/wakatime-desktop` aus, für Upstream). Es braucht nur den Key in `~/.wakatime.cfg`; abschalten mit `export T3CODE_WAKATIME_ENABLED=false` in `~/.zshrc`.
 - **T3 Connect braucht `.env` beim Bau.** Ohne `cp .env.example .env` fehlen dem Bau die öffentlichen Clerk- und Relay-Kennungen, die App zeigt dann kein „Sign in to T3 Connect“ (so beim Bau vom 15.10.2026). `.env` ist gitignored und enthält keine Geheimnisse.
 - Seit Upstream 0.1.x Versionen nach dem Muster `0.1.3-nightly.JJJJMMTT.N` wählen. App und Server müssen dieselbe Protokoll-Linie haben, sonst verweigern sie die Verbindung (Mac mini läuft mit `t3` 0.1.2, die iPhone-App 2.1.0 gehört zur selben Linie).
 
