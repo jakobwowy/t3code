@@ -128,6 +128,8 @@ const WakaTimeEnvConfig = Config.all({
 export const make = Effect.fn("DesktopWakaTime.make")(function* (options: {
   /** The webContents of the focused window, if a window has focus. */
   readonly focusedWebContentsId: Effect.Effect<Option.Option<number>>;
+  /** Defaults to `process.env` as it stands once the shell environment is discovered. */
+  readonly configProvider?: ConfigProvider.ConfigProvider;
 }) {
   const fileSystem = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
@@ -137,7 +139,6 @@ export const make = Effect.fn("DesktopWakaTime.make")(function* (options: {
   const shellEnvironment = yield* DesktopShellEnvironment.DesktopShellEnvironment;
   const hostPlatform = yield* HostProcess.Platform;
   const hostArchitecture = yield* HostProcess.Architecture;
-  const configProvider = yield* ConfigProvider.ConfigProvider;
 
   const displayedBySender = new Map<number, DisplayedWork>();
   const lastSentRef = yield* Ref.make<{ readonly entity: string; readonly at: number } | null>(
@@ -152,7 +153,10 @@ export const make = Effect.fn("DesktopWakaTime.make")(function* (options: {
   const loadTarget = yield* Effect.cached(
     Effect.gen(function* () {
       yield* shellEnvironment.awaitDiscovery;
-      const env = yield* WakaTimeEnvConfig;
+      // Not the ambient provider: Effect's default copies process.env before discovery fills it.
+      const env = yield* WakaTimeEnvConfig.parse(
+        options.configProvider ?? ConfigProvider.fromEnv(),
+      );
       if (!env.enabled) return Option.none();
       const configPath = path.join(
         Option.getOrElse(env.wakaTimeHome, () => NodeOS.homedir()),
@@ -174,10 +178,7 @@ export const make = Effect.fn("DesktopWakaTime.make")(function* (options: {
         bulkUrl: `${settings.apiUrl}/users/current/heartbeats.bulk`,
         authorization: `Basic ${Base64.encode(Redacted.value(apiKey.value))}`,
       });
-    }).pipe(
-      Effect.provideService(ConfigProvider.ConfigProvider, configProvider),
-      Effect.orElseSucceed(() => Option.none()),
-    ),
+    }).pipe(Effect.orElseSucceed(() => Option.none())),
   );
 
   const send = (

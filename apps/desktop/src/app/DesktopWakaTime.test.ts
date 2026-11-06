@@ -2,6 +2,7 @@ import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, describe, it } from "@effect/vitest";
 import * as ConfigProvider from "effect/ConfigProvider";
 import * as Context from "effect/Context";
+import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as HttpClient from "effect/http/HttpClient";
@@ -48,6 +49,7 @@ interface SentRequest {
 /**
  * Starts the service against a WakaTime config in a temp home. Every request it
  * sends lands in `requests`; `focused` and `idleState` stand in for the machine.
+ * With `processEnv`, the switch and home come from `process.env` instead.
  */
 const start = Effect.fn("DesktopWakaTime.test.start")(function* (
   options: {
@@ -55,6 +57,8 @@ const start = Effect.fn("DesktopWakaTime.test.start")(function* (
     readonly settings?: string;
     readonly failedSends?: number;
     readonly rejectedSends?: number;
+    readonly processEnv?: boolean;
+    readonly awaitDiscovery?: Effect.Effect<boolean>;
   } = {},
 ) {
   const fileSystem = yield* FileSystem.FileSystem;
@@ -76,7 +80,17 @@ const start = Effect.fn("DesktopWakaTime.test.start")(function* (
   const service = yield* Layer.build(
     Layer.effect(
       DesktopWakaTime.DesktopWakaTime,
-      DesktopWakaTime.make({ focusedWebContentsId: Effect.sync(() => machine.focused) }),
+      DesktopWakaTime.make({
+        focusedWebContentsId: Effect.sync(() => machine.focused),
+        ...(options.processEnv
+          ? {}
+          : {
+              configProvider: ConfigProvider.fromUnknown({
+                T3CODE_WAKATIME_ENABLED: options.enabled ?? true,
+                WAKATIME_HOME: home,
+              }),
+            }),
+      }),
     ).pipe(
       Layer.provide(
         Layer.mergeAll(
@@ -85,7 +99,7 @@ const start = Effect.fn("DesktopWakaTime.test.start")(function* (
           }),
           Layer.mock(ElectronApp.ElectronApp)({ on: () => Effect.void }),
           Layer.mock(DesktopShellEnvironment.DesktopShellEnvironment)({
-            awaitDiscovery: Effect.succeed(true),
+            awaitDiscovery: options.awaitDiscovery ?? Effect.succeed(true),
           }),
           Layer.succeed(
             HttpClient.HttpClient,
@@ -117,12 +131,6 @@ const start = Effect.fn("DesktopWakaTime.test.start")(function* (
               }),
             ),
           ),
-          ConfigProvider.layer(
-            ConfigProvider.fromUnknown({
-              T3CODE_WAKATIME_ENABLED: options.enabled ?? true,
-              WAKATIME_HOME: home,
-            }),
-          ),
         ),
       ),
     ),
@@ -130,6 +138,7 @@ const start = Effect.fn("DesktopWakaTime.test.start")(function* (
   const wakaTime = Context.get(service, DesktopWakaTime.DesktopWakaTime);
 
   return {
+    home,
     machine,
     show: (work: DesktopWakaTime.DisplayedWork | null, window = WINDOW) =>
       wakaTime.setDisplayed(window, work),
@@ -299,6 +308,39 @@ describe("DesktopWakaTime", () => {
           "time",
           "type",
         ]);
+      }),
+    );
+
+    it.effect("reads the switch the shell environment adds after startup", () =>
+      Effect.gen(function* () {
+        const names = ["T3CODE_WAKATIME_ENABLED", "WAKATIME_HOME"] as const;
+        yield* Effect.acquireRelease(
+          Effect.sync(() => {
+            const saved = names.map((name) => [name, process.env[name]] as const);
+            for (const name of names) delete process.env[name];
+            return saved;
+          }),
+          (saved) =>
+            Effect.sync(() => {
+              for (const [name, value] of saved) {
+                if (value === undefined) delete process.env[name];
+                else process.env[name] = value;
+              }
+            }),
+        );
+        const discovered = yield* Deferred.make<boolean>();
+        const service = yield* start({
+          processEnv: true,
+          awaitDiscovery: Deferred.await(discovered),
+        });
+
+        process.env.T3CODE_WAKATIME_ENABLED = "true";
+        process.env.WAKATIME_HOME = service.home;
+        yield* Deferred.succeed(discovered, true);
+        yield* service.show(THREAD);
+
+        const request = yield* service.nextRequest;
+        assert.equal(request.heartbeats[0]?.entity, "T3 Code thread-1");
       }),
     );
 
