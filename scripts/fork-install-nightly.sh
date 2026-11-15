@@ -67,6 +67,8 @@ hdiutil attach "$DMG" -nobrowse -quiet -mountpoint "$MOUNT"
 cp -R "$MOUNT/$APP_NAME.app" /Applications/
 hdiutil detach "$MOUNT" -quiet
 rmdir "$MOUNT"
+# Stable signature, so screen recording and other privacy grants survive the update.
+"$REPO/scripts/fork-sign-nightly.sh" "$APP" | sed 's/^/    /'
 
 echo "5/5 Starten"
 open "$APP"
