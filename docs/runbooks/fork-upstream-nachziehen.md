@@ -74,6 +74,8 @@ Zusätzlich `volta run --node 24.21.0 vp run check:changed main`: Format, Lint, 
 3. Zielstand bauen: `sync/target` von `main`, beide Features hineinmergen, Fork-Doku aus `wowy` holen, `check:changed main` grün.
 4. `wowy` ohne Force-Push nachziehen: Merge-Commit mit dem Baum des Zielstands und den Eltern `wowy`, `main` und den Features (`git commit-tree <baum> -p wowy -p main -p sync/...`), dann `git merge --ff-only`. Die rebasten Features liegen als `sync/*` vor, `feat/*` und `origin/feat/*` bleiben auf dem alten Stand, bis entschieden ist, ob sie ersetzt werden.
 
+**Kürzer, wenn `feat/*` hinter `wowy` zurückliegen (23.11.2026, 3733 Upstream-Commits):** Die Fixes der letzten Wochen lagen nur auf `wowy`, die Feature-Branches waren veraltet. Statt sie einzeln zu rebasen, das ganze Fork-Delta als Patch übertragen: `git diff <alte main> wowy --binary > fork.patch`, im Worktree auf `main` ein `git apply -3 fork.patch`, die Konflikte von Hand lösen (diesmal fünf Dateien, rund eine Stunde), dann Schritt 4. Typische Fallen dieses Laufs: Upstream hatte `explicitDiffOpenRef` entfernt, die Oberfläche läuft jetzt über `gt-react` (`<T>`, `<Var>`), und die neue Diagnose `processEnvInEffect` verlangt in Tests, die `process.env` setzen, eine Datei-Direktive. Der Browser-Test „a shortcut conditioned on rightPanelOpen …" scheiterte auch auf reinem Upstream.
+
 ## Starten
 
 **Erprobung (jetzt):** Dev-Lauf aus dem Haupt-Checkout.
