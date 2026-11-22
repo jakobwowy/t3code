@@ -1,3 +1,4 @@
+// @effect-diagnostics processEnvInEffect:off - one case proves the service reads the environment the shell adds after startup.
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, describe, it } from "@effect/vitest";
 import * as ConfigProvider from "effect/ConfigProvider";
