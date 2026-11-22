@@ -322,6 +322,7 @@ export const ShellEnvironmentPatch = Schema.Struct({
   T3CODE_TELEMETRY_ENABLED: Schema.optionalKey(Schema.NullOr(Schema.String)),
   T3CODE_FEATURE_FLAGS: Schema.optionalKey(Schema.NullOr(Schema.String)),
   T3CODE_RELEASE_BASE_URL: Schema.optionalKey(Schema.NullOr(Schema.String)),
+  T3CODE_WAKATIME_ENABLED: Schema.optionalKey(Schema.NullOr(Schema.String)),
   __MISE_DIFF: Schema.optionalKey(Schema.NullOr(Schema.String)),
   JAVA_HOME: Schema.optionalKey(Schema.NullOr(Schema.String)),
   PNPM_HOME: Schema.optionalKey(Schema.NullOr(Schema.String)),

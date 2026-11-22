@@ -141,16 +141,16 @@ export function useRightPanelActions(input: RightPanelActionsInput) {
   };
   const duplicateBrowserSurfaceStable = useStableCallback(duplicateBrowserSurface);
   const createBrowserSurfaceStable = useStableCallback(createBrowserSurface);
-  const addDiffSurface = () => {
+  const openChangesFromThreadPanel = (scope: "branch" | "unstaged") => {
     if (!activeThreadRef || !isServerThread || !diffAvailable) return;
-    useDiffPanelStore.getState().selectGitScope(activeThreadRef, "branch");
+    useDiffPanelStore.getState().selectGitScope(activeThreadRef, scope);
     useRightPanelStore.getState().open(activeThreadRef, "diff");
     onDiffPanelOpen?.();
   };
-  const addDiffSurfaceStable = useStableCallback(addDiffSurface);
-  const openChangesFromThreadPanel = () => {
-    addDiffSurface();
+  const addDiffSurface = () => {
+    openChangesFromThreadPanel("branch");
   };
+  const addDiffSurfaceStable = useStableCallback(addDiffSurface);
   const openChangesFromThreadPanelStable = useStableCallback(openChangesFromThreadPanel);
   const addFilesSurface = () => {
     if (!activeThreadRef || !activeProject) return;

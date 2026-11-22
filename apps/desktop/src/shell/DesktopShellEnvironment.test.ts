@@ -632,6 +632,7 @@ describe("DesktopShellEnvironment", () => {
             PATH: "/opt/homebrew/bin:/usr/bin:/opt/bin ",
             SSH_AUTH_SOCK: "/tmp/secretive.sock",
             HOMEBREW_PREFIX: "/opt/homebrew",
+            T3CODE_WAKATIME_ENABLED: "true",
           });
         },
       });
@@ -641,6 +642,7 @@ describe("DesktopShellEnvironment", () => {
       assert.equal(env.PATH, "/opt/homebrew/bin:/usr/bin:/opt/bin : /Users/test/.local/bin");
       assert.equal(env.SSH_AUTH_SOCK, "/tmp/secretive.sock");
       assert.equal(env.HOMEBREW_PREFIX, "/opt/homebrew");
+      assert.equal(env.T3CODE_WAKATIME_ENABLED, "true");
       assert.isTrue(prepared);
     }),
   );

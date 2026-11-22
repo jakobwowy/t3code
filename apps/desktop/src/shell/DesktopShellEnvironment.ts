@@ -125,6 +125,7 @@ const LOGIN_SHELL_ENV_NAMES = [
   "T3CODE_TELEMETRY_ENABLED",
   "T3CODE_FEATURE_FLAGS",
   "T3CODE_RELEASE_BASE_URL",
+  "T3CODE_WAKATIME_ENABLED",
   "__MISE_DIFF",
   "JAVA_HOME",
   "PNPM_HOME",
@@ -556,6 +557,7 @@ const installPosixEnvironment = Effect.fn("desktop.shellEnvironment.installPosix
       "T3CODE_TELEMETRY_ENABLED",
       "T3CODE_FEATURE_FLAGS",
       "T3CODE_RELEASE_BASE_URL",
+      "T3CODE_WAKATIME_ENABLED",
     ] as const) {
       if (!config.env[name] && shellEnvironment[name]) {
         config.env[name] = shellEnvironment[name];

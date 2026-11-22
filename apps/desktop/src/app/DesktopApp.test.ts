@@ -65,6 +65,7 @@ import * as DesktopPrimaryPaste from "./DesktopPrimaryPaste.ts";
 import * as DesktopSshEnvironment from "../ssh/DesktopSshEnvironment.ts";
 import * as DesktopSshPasswordPrompts from "../ssh/DesktopSshPasswordPrompts.ts";
 import * as DesktopTelemetryPublisher from "../telemetry/DesktopTelemetryPublisher.ts";
+import * as DesktopWakaTime from "./DesktopWakaTime.ts";
 import * as DesktopWebLinks from "./DesktopWebLinks.ts";
 import * as DesktopWslEnvironment from "../wsl/DesktopWslEnvironment.ts";
 import * as ElectronMenu from "../electron/ElectronMenu.ts";
@@ -166,6 +167,9 @@ const runStubbedDesktop = (stub: StubbedDesktop) =>
         Effect.provideService(DesktopSnapShot.DesktopSnapShot, {
           initialize: Effect.void,
         } as DesktopSnapShot.DesktopSnapShot["Service"]),
+        Effect.provideService(DesktopWakaTime.DesktopWakaTime, {
+          setDisplayed: () => Effect.void,
+        }),
         Effect.provideService(DesktopState.DesktopState, {
           quitting,
         } as DesktopState.DesktopState["Service"]),

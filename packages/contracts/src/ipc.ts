@@ -1104,6 +1104,13 @@ export const DesktopAppleSpeechTranscribeInputSchema = Schema.Struct({
 export const SystemSettingsPaneSchema = Schema.Literals(["full-disk-access"]);
 export type SystemSettingsPane = typeof SystemSettingsPaneSchema.Type;
 
+/** A thread, or a draft by its project's id, with where it lives. */
+export interface DesktopDisplayedWork {
+  readonly id: string;
+  readonly workspaceRoot: string;
+  readonly branch: string | null;
+}
+
 export interface DesktopBridge {
   getAppBranding: () => DesktopAppBranding | null;
   /** `null` until the desktop host has read the login shell's environment; ask again later. */
@@ -1230,6 +1237,10 @@ export interface DesktopBridge {
     install: () => Promise<DesktopCliCommandState>;
     uninstall: () => Promise<DesktopCliCommandState>;
     addToPath: () => Promise<DesktopCliCommandState>;
+  };
+  timeTracking: {
+    /** Reports what this window shows; the desktop app sends WakaTime heartbeats for it. */
+    setDisplayed: (work: DesktopDisplayedWork | null) => Promise<void>;
   };
   webLinks: {
     setReady: (ready: boolean) => Promise<void>;

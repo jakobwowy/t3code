@@ -37,6 +37,7 @@ import {
   CloudDownloadIcon,
   CloudUploadIcon,
   FileDiffIcon,
+  FilePenLineIcon,
   GitBranchPlusIcon,
   GitCommitIcon,
   InfoIcon,
@@ -156,7 +157,7 @@ interface GitActionsViewProps {
   compact?: boolean;
   showActions?: boolean;
   showChanges?: boolean;
-  onOpenChanges?: () => void;
+  onOpenChanges?: (scope: "branch" | "unstaged") => void;
   workspaceMutationId?: string | null;
 }
 
@@ -1728,7 +1729,7 @@ function CheckoutGitActionsControl({
                 size="sm"
                 part="row"
                 disabled={!onOpenChanges}
-                onClick={onOpenChanges}
+                onClick={() => onOpenChanges?.("branch")}
               />
             }
           >
@@ -1783,6 +1784,53 @@ function CheckoutGitActionsControl({
             </TooltipPopup>
           ) : null}
         </Tooltip>
+      ) : null}
+
+      {showChanges && isRepo && !quietEmptyDraft ? (
+        <ThreadDetailsControl
+          type="button"
+          variant="ghost"
+          size="sm"
+          part="row"
+          disabled={!onOpenChanges}
+          onClick={() => onOpenChanges?.("unstaged")}
+        >
+          <FilePenLineIcon className={THREAD_DETAILS_PANEL_ICON_CLASS} aria-hidden />
+          <span className="flex min-w-0 flex-1 items-baseline gap-1.5">
+            <span className="shrink-0">
+              <T>Uncommitted</T>
+            </span>
+            <span className="min-w-0 truncate font-normal text-muted-foreground">
+              {allFiles.length === 1 ? (
+                <T>1 file</T>
+              ) : (
+                <T>
+                  <Var>{allFiles.length}</Var> files
+                </T>
+              )}
+            </span>
+            <span className="ml-auto flex shrink-0 items-baseline gap-2 ps-2 font-mono tabular-nums">
+              <span
+                className={
+                  gitStatusForActions?.workingTree.insertions
+                    ? "text-diff-addition-foreground"
+                    : "text-muted-foreground"
+                }
+              >
+                +{formatDiffCount(gitStatusForActions?.workingTree.insertions ?? 0)}
+              </span>
+              <span
+                className={
+                  gitStatusForActions?.workingTree.deletions
+                    ? "text-diff-deletion-foreground"
+                    : "text-muted-foreground"
+                }
+              >
+                -{formatDiffCount(gitStatusForActions?.workingTree.deletions ?? 0)}
+              </span>
+            </span>
+          </span>
+        </ThreadDetailsControl>
       ) : null}
 
       <Dialog
