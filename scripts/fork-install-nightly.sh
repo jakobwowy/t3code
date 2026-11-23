@@ -13,8 +13,11 @@ REPO="$(cd "$(dirname "$0")/.." && pwd)"
 SELF="$REPO/scripts/fork-install-nightly.sh"
 
 # Quitting the app ends every process it started. Run from a T3 thread, hand over to Terminal.
+# A Terminal that `open` launches inherits this environment, so unset the marker explicitly;
+# otherwise every new window hands over again (23.11.2026: 95 windows).
 if [[ -n "${T3CODE_THREAD_ID:-}" ]]; then
-  open -a Terminal "$SELF"
+  osascript -e "tell application \"Terminal\" to do script \"unset T3CODE_THREAD_ID; '$SELF'\"" \
+    -e 'tell application "Terminal" to activate' >/dev/null
   echo "Installation läuft im Terminal-Fenster weiter (neueste DMG aus release/)."
   exit 0
 fi
